@@ -20,11 +20,15 @@ Prototype for PS4 firmware 11.00 / GoldHEN. Current development work is on the `
 
 Use PS4's supported cloud or USB saved-data backups when available. A full-console backup restore erases current console data, so verify the backup and its contents before selecting Restore PS4. Apollo Save Tool can import/export saves that still exist or are already available as files; it is not a deleted-sector recovery tool.
 
+## Controller button icons
+
+The dashboard uses the colored PlayStation button glyphs from [flat-gamepad-icons](https://github.com/RobTheFiveNine/flat-gamepad-icons) by RobTheFiveNine, licensed CC BY-SA 4.0. The source SVG is retained in `assets/ps4-gamepad-icons.svg`; the build rasterizes the four symbols into anti-aliased RGBA textures bundled into the application. Attribution and license details are in `assets/ATTRIBUTION.md`.
+
 ## Build status
 
-- The latest prototype PKG compiled successfully in GitHub Actions on November 27, 2026 (commit `db775a136b5e5c95aacb0aa0a5af8911ff22b8af`). The workflow artifact is `SaveGuard-prototype` (17.6 MB; ZIP SHA-256 `9cb67005c18bab0d816803c4bcda7588c66b5d81fbbb43dbb3d0aa466c89cabd`).
+- The prototype PKG with the bundled full-color controller glyphs compiled successfully in GitHub Actions on November 27, 2026 (source commit `781eaecf429cee02afa0939335f89698fe8cd927`, run #47). The workflow artifact is `SaveGuard-prototype` (18,517,066 bytes; ZIP SHA-256 `d185808ee3a43e0419f1ccd35612f6cf362c3e3b4dfe73667deadb97f4586f80`).
 - The extracted PKG SHA-256 is `b95909dec551f00b8ef5eb74caac3d9219def008a23526f535e61bf03e580d58`. Its header starts with the PS4 PKG magic and its Content ID matches the filename; this does not establish console compatibility.
-- Native safety tests for the same commit passed in GitHub Actions.
+- Native dashboard compilation and safety tests passed in GitHub Actions run #73 after the generated icon header was wired into the native build.
 - The user successfully opened SaveGuard on a PS4, but screenshots show `USB NOT READY`, `FILES 0 / ERRORS 1` on SCAN FILES, and a subsequent application crash `CE-34878-0`.
 - Installation and runtime behavior are unresolved. Do not treat this artifact as a usable release.
 - The prototype does not perform sector-level undelete or restore a staged snapshot back into an active PS4 save-data slot.
