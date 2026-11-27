@@ -5,6 +5,10 @@
 #include <string.h>
 #include <stdint.h>
 #include <time.h>
+#include <stdlib.h>
+struct sg_db_summary {unsigned rows,present,missing,unknown;};
+int sg_db_reconcile(uint32_t,struct sg_db_summary *);
+static struct sg_db_summary db_summary;
 int sg_snapshot(const char *,unsigned);
 int sg_usb_ready(unsigned);
 static void rect(SDL_Renderer *r,int x,int y,int w,int h,int a,int b,int c){
@@ -141,8 +145,8 @@ int main(void){
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_X&&(selected==3||selected==9||selected==10)&&backup_count){
  backup_index=(backup_index+1)%backup_count;confirm=0;continue;
  }
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)selected=(selected+1)%12;
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP)selected=(selected+11)%12;
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)selected=(selected+1)%13;
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP)selected=(selected+12)%13;
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_B){if(confirm)confirm=0;else running=0;}
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_LEFT){usb=(usb+7)%8;confirm=0;backup_count=backup_index=0;trash_view=0;}
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_RIGHT){usb=(usb+1)%8;confirm=0;backup_count=backup_index=0;trash_view=0;}
@@ -167,6 +171,11 @@ int main(void){
  else if(backup_count)confirm=1;
  else status=2;
  }
+ else if(selected==11){
+ memset(&db_summary,0,sizeof db_summary);
+ status=game_count&&sg_db_reconcile((uint32_t)strtoul(games[game_index].user,NULL,16),&db_summary)>=0?1:2;
+ confirm=0;
+ }
  else running=0;
  }
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP||e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)confirm=0;
@@ -179,14 +188,14 @@ int main(void){
  }
  SDL_SetRenderDrawColor(r,12,20,36,255);SDL_RenderClear(r);
  rect(r,40,40,1200,85,26,47,75);
- for(int i=0;i<12;i++)rect(r,40,150+i*44,350,39,i==selected?40:25,i==selected?110:40,i==selected?185:65);
+ for(int i=0;i<13;i++)rect(r,40,150+i*40,350,36,i==selected?40:25,i==selected?110:40,i==selected?185:65);
  rect(r,420,150,820,480,20,34,54);
  rect(r,450,180,760,24,status==2?190:40,status==1?170:65,80);
  if(confirm)rect(r,450,230,760,45,190,120,30);
  for(unsigned i=0;i<8;i++)rect(r,450+i*90,300,70,35,i==usb?40:30,i==usb?150:60,100);
  label(r,65,65,5,"PS4 SAVEGUARD");
- const char *names[]={"SCAN FILES","USB BACKUP","NEXT GAME","HISTORY","VERIFY BACKUP","STAGE RECOVERY","BACKUP ALL","AUTO BACKUP","PIN SECURITY","TRASH BACKUP","RESTORE TRASH","EXIT"};
- for(int i=0;i<12;i++)label(r,65,158+i*44,3,names[i]);
+ const char *names[]={"SCAN FILES","USB BACKUP","NEXT GAME","HISTORY","VERIFY BACKUP","STAGE RECOVERY","BACKUP ALL","AUTO BACKUP","PIN SECURITY","TRASH BACKUP","RESTORE TRASH","SCAN DATABASE","EXIT"};
+ for(int i=0;i<13;i++)label(r,65,156+i*40,3,names[i]);
  char info[100];snprintf(info,sizeof info,"FILES %u   ERRORS %u",files,errors);
  label(r,450,345,3,info);
  label(r,450,390,3,status==2?"ERROR OR PARTIAL":status==1?"OPERATION COMPLETE":"READY");
@@ -205,6 +214,10 @@ int main(void){
  if(selected==4){snprintf(info,sizeof info,"VERIFIED FILES %u",verified_files);label(r,450,655,2,info);}
  if(selected==6){snprintf(info,sizeof info,"TOTAL %u OK %u FAILED %u",batch.attempted,batch.succeeded,batch.failed);label(r,450,610,2,info);}
  if(selected==7){label(r,450,610,2,schedule.enabled?"AUTO BACKUP ON":"AUTO BACKUP OFF");snprintf(info,sizeof info,"INTERVAL 24 HOURS USB %u",schedule.enabled?schedule.usb:usb);label(r,450,650,2,info);}
+ if(selected==11){
+ snprintf(info,sizeof info,"DB ROWS %u TITLE DIR FOUND %u",db_summary.rows,db_summary.present);label(r,450,610,2,info);
+ snprintf(info,sizeof info,"MISSING DIR %u UNKNOWN %u",db_summary.missing,db_summary.unknown);label(r,450,650,2,info);
+ }
  if(pin_mode){
  rect(r,420,150,820,520,20,34,54);
  label(r,450,190,3,pin_mode==1?"CREATE PIN":pin_mode==3?"CONFIRM NEW PIN":changing_pin?"ENTER CURRENT PIN":"VERIFY PIN");
