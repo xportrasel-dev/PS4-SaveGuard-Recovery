@@ -29,3 +29,21 @@ int sg_pin_verify(const struct sg_pin_record *r,const char *pin){
  volatile unsigned char *p=h;for(unsigned i=0;i<32;i++)p[i]=0;
  return diff?-1:0;
 }
+
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+int sg_pin_create_random(struct sg_pin_record *r,const char *pin){
+ unsigned char salt[16];size_t off=0;
+ int fd=open("/dev/urandom",O_RDONLY);
+ if(fd<0)return -1;
+ while(off<sizeof salt){
+ ssize_t n=read(fd,salt+off,sizeof salt-off);
+ if(n<0&&errno==EINTR)continue;
+ if(n<=0)break;
+ off+=(size_t)n;
+ }
+ close(fd);
+ if(off!=sizeof salt)return -1;
+ return sg_pin_create(r,pin,salt);
+}
