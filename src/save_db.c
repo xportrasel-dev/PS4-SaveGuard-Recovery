@@ -64,3 +64,27 @@ int sg_db_scan_all(struct sg_db_summary *total,unsigned *users,unsigned *failed)
  }
  closedir(d);return *users?rc:-1;
 }
+
+typedef void (*sg_orphan_cb)(uint32_t,const char *,void *);
+int sg_orphan_titles(uint32_t user,sg_orphan_cb cb,void *ctx){
+ char root[128],dbpath[128];sqlite3 *db=NULL;sqlite3_stmt *st=NULL;DIR *d=NULL;int count=0,rc=-1;
+ if(!cb)return -1;
+ snprintf(root,sizeof root,"/user/home/%08x/savedata",(unsigned)user);
+ snprintf(dbpath,sizeof dbpath,"/system_data/savedata/%08x/db/user/savedata.db",(unsigned)user);
+ if(sqlite3_open_v2(dbpath,&db,SQLITE_OPEN_READONLY|SQLITE_OPEN_PRIVATECACHE,NULL)!=SQLITE_OK)goto done;
+ if(sqlite3_exec(db,"PRAGMA query_only=ON; PRAGMA temp_store=MEMORY;",NULL,NULL,NULL)!=SQLITE_OK)goto done;
+ if(sqlite3_prepare_v2(db,"SELECT 1 FROM savedata WHERE title_id=? LIMIT 1",-1,&st,NULL)!=SQLITE_OK)goto done;
+ d=opendir(root);if(!d)goto done;
+ for(;;){
+ errno=0;struct dirent *e=readdir(d);if(!e){if(!errno)rc=count;break;}
+ if(strlen(e->d_name)!=9||strncmp(e->d_name,"CUSA",4)||strspn(e->d_name+4,"0123456789")!=5)continue;
+ char path[160];struct stat sb;snprintf(path,sizeof path,"%s/%.9s",root,e->d_name);
+ if(lstat(path,&sb)||!S_ISDIR(sb.st_mode))goto done;
+ if(sqlite3_bind_text(st,1,e->d_name,-1,SQLITE_TRANSIENT)!=SQLITE_OK)goto done;
+ int step=sqlite3_step(st);
+ if(step==SQLITE_DONE){if(count>=65536)goto done;cb(user,e->d_name,ctx);count++;}
+ else if(step!=SQLITE_ROW)goto done;
+ if(sqlite3_reset(st)!=SQLITE_OK||sqlite3_clear_bindings(st)!=SQLITE_OK)goto done;
+ }
+ done:if(d)closedir(d);sqlite3_finalize(st);sqlite3_close(db);return rc;
+}
