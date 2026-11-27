@@ -1,5 +1,6 @@
 #include <SDL2/SDL.h>
 #include "button_icons_generated.h"
+#include "ui_font_generated.h"
 #include <stdio.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -138,18 +139,36 @@ static void inventory(const char *p,unsigned depth){
  }
  closedir(d);
 }
-/* Five-column bitmap font, uppercase ASCII and digits. */
-static const unsigned char glyph[36][5]={
-{126,9,9,9,126},{127,73,73,73,54},{62,65,65,65,34},{127,65,65,34,28},{127,73,73,73,65},{127,9,9,9,1},{62,65,73,73,122},{127,8,8,8,127},{65,65,127,65,65},{32,64,65,63,1},{127,8,20,34,65},{127,64,64,64,64},{127,2,12,2,127},{127,4,8,16,127},{62,65,65,65,62},{127,9,9,9,6},{62,65,81,33,94},{127,9,25,41,70},{38,73,73,73,50},{1,1,127,1,1},{63,64,64,64,63},{31,32,64,32,31},{63,64,56,64,63},{99,20,8,20,99},{7,8,112,8,7},{97,81,73,69,67},
-{62,81,73,69,62},{0,66,127,64,0},{98,81,73,73,70},{34,65,73,73,54},{24,20,18,127,16},{39,69,69,69,57},{62,73,73,73,50},{1,113,9,5,3},{54,73,73,73,54},{38,73,73,73,62}};
+static SDL_Texture *sg_font_texture;
+static const char sg_font_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ";
 static void label(SDL_Renderer *r,int x,int y,int scale,const char *s){
- for(;*s;s++,x+=6*scale){
- int k=*s>='A'&&*s<='Z'?*s-'A':*s>='0'&&*s<='9'?26+*s-'0':-1;
- if(k<0)continue;
- for(int i=0;i<5;i++)for(int j=0;j<7;j++)if(glyph[k][i]&(1<<j))rect(r,x+i*scale,y+j*scale,scale,scale,230,240,250);
+ if(!sg_font_texture){
+  SDL_Surface *surface=SDL_CreateRGBSurfaceWithFormatFrom(
+   (void *)sg_font_rgba,
+   SG_FONT_ATLAS_WIDTH,SG_FONT_ATLAS_HEIGHT,32,
+   SG_FONT_ATLAS_WIDTH*4,SDL_PIXELFORMAT_RGBA32
+  );
+  if(!surface)return;
+  sg_font_texture=SDL_CreateTextureFromSurface(r,surface);
+  SDL_FreeSurface(surface);
+  if(!sg_font_texture)return;
+  SDL_SetTextureBlendMode(sg_font_texture,SDL_BLENDMODE_BLEND);
+  SDL_SetTextureColorMod(sg_font_texture,230,240,250);
+ }
+ const int dest_height=7*scale;
+ for(;*s;s++){
+  const char *found=strchr(sg_font_chars,*s);
+  if(!found){x+=scale*3;continue;}
+  int k=(int)(found-sg_font_chars);
+  int advance=(sg_font_advances[k]*scale*7+2400)/4800;
+  SDL_Rect src={(k%SG_FONT_ATLAS_COLS)*SG_FONT_CELL_WIDTH,
+                (k/SG_FONT_ATLAS_COLS)*SG_FONT_CELL_HEIGHT,
+                SG_FONT_CELL_WIDTH,SG_FONT_CELL_HEIGHT};
+  SDL_Rect dst={x,y,advance,dest_height};
+  SDL_RenderCopy(r,sg_font_texture,&src,&dst);
+  x+=advance;
  }
 }
-
 enum { SG_ICON_CROSS, SG_ICON_CIRCLE, SG_ICON_SQUARE, SG_ICON_TRIANGLE };
 static SDL_Texture *button_textures[4];
 static const unsigned char *button_pixels[4]={
@@ -181,6 +200,7 @@ int main(void){
  if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER))return 1;
  SDL_Window *w=SDL_CreateWindow("SaveGuard",SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,1280,720,0);
  if(!w){SDL_Quit();return 1;}
+ SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"1");
  SDL_Renderer *r=SDL_CreateRenderer(w,-1,SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
  if(!r){SDL_DestroyWindow(w);SDL_Quit();return 1;}
  SDL_GameController *pad=NULL;
@@ -359,5 +379,7 @@ int main(void){
  SDL_RenderPresent(r);SDL_Delay(16);
  }
  if(pad)SDL_GameControllerClose(pad);
+ if(sg_font_texture)SDL_DestroyTexture(sg_font_texture);
+ for(int i=0;i<4;i++)if(button_textures[i])SDL_DestroyTexture(button_textures[i]);
  SDL_DestroyRenderer(r);SDL_DestroyWindow(w);SDL_Quit();return 0;
 }
