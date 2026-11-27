@@ -1,3 +1,4 @@
+int sg_usb_ready(unsigned);
 #include <stdio.h>
 #include <stdint.h>
 #include <sys/stat.h>
@@ -7,7 +8,7 @@
 struct sg_schedule {uint64_t interval_seconds,next_due;unsigned enabled,usb,running;};
 int sg_schedule_configure(struct sg_schedule *,unsigned,unsigned,uint64_t,uint64_t);
 static int settings_path(unsigned usb,char p[128]){
- if(usb>7)return -1;
+ if(sg_usb_ready(usb))return -1;
  char root[64];struct stat st;
  snprintf(root,sizeof root,"/mnt/usb%u",usb);
  if(lstat(root,&st)||!S_ISDIR(st.st_mode))return -1;
