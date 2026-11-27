@@ -34,3 +34,16 @@ int sg_pin_load(unsigned usb,struct sg_pin_record *r){
  if(off!=sizeof b||memcmp(b,"SGP1",4))return -1;
  memcpy(r->salt,b+4,16);memcpy(r->hash,b+20,32);return 0;
 }
+
+int sg_pin_replace(unsigned usb,const struct sg_pin_record *old,const struct sg_pin_record *next){
+ char p[128],tmp[160];struct sg_pin_record current;unsigned char b[52];
+ if(!old||!next||path_for(usb,p)||sg_pin_load(usb,&current)||memcmp(&current,old,sizeof current))return -1;
+ snprintf(tmp,sizeof tmp,"%s.new",p);
+ memcpy(b,"SGP1",4);memcpy(b+4,next->salt,16);memcpy(b+20,next->hash,32);
+ int fd=open(tmp,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);if(fd<0)return -1;
+ size_t off=0;
+ while(off<sizeof b){ssize_t n=write(fd,b+off,sizeof b-off);if(n<0&&errno==EINTR)continue;if(n<=0)break;off+=(size_t)n;}
+ int rc=off!=sizeof b||fsync(fd);if(close(fd))rc=1;
+ if(!rc)rc=sg_usb_ready(usb)||sg_pin_load(usb,&current)||memcmp(&current,old,sizeof current)||rename(tmp,p);
+ if(rc){unlink(tmp);return -1;}return 0;
+}
