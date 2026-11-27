@@ -24,4 +24,6 @@ Use PS4's supported cloud or USB saved-data backups when available. A full-conso
 
 - The latest prototype PKG compiled successfully in GitHub Actions on November 27, 2026 (commit `db775a136b5e5c95aacb0aa0a5af8911ff22b8af`). The workflow artifact is `SaveGuard-prototype` (17.6 MB; SHA-256 `9cb67005c18bab0d816803c4bcda7588c66b5d81fbbb43dbb3d0aa466c89cabd`).
 - Native safety tests for the same commit passed in GitHub Actions.
-- The PKG has not been installed or exercised on a PS4. This is a prototype build, not a validated recovery release; on-console behavior, restore compatibility, and actual recovery success remain unverified.
+- A PS4 install attempt for this PKG returned `CE-34706-0` (`0x80F00100`, package header format error). The extracted PKG has the expected PS4 PKG magic and matching content ID, but that does not validate the package on-console.
+- Installation and runtime behavior remain unresolved. Do not treat this artifact as a usable release, and do not launch it on the console until the install failure is resolved.
+- The prototype does not yet perform sector-level undelete or restore a staged snapshot back into an active PS4 save-data slot.
