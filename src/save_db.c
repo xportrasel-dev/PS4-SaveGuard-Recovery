@@ -22,3 +22,26 @@ int sg_db_user_inventory(uint32_t user,sg_db_cb cb,void *ctx){
  char p[128];snprintf(p,sizeof p,"/system_data/savedata/%08x/db/user/savedata.db",(unsigned)user);
  return sg_db_inventory(p,cb,ctx);
 }
+
+#include <sys/stat.h>
+#include <errno.h>
+struct sg_db_summary {unsigned rows,present,missing,unknown;};
+struct sg_db_context {uint32_t user;struct sg_db_summary *s;};
+static int classify(const char *title,const char *dir,const char *name,int64_t blocks,void *ctx){
+ (void)dir;(void)name;(void)blocks;
+ struct sg_db_context *c=ctx;struct sg_db_summary *s=c->s; s->rows++;
+ if(strlen(title)!=9||strncmp(title,"CUSA",4)||strspn(title+4,"0123456789")!=5){s->unknown++;return 0;}
+ char root[128],p[160];struct stat st;
+ snprintf(root,sizeof root,"/user/home/%08x/savedata",(unsigned)c->user);
+ if(lstat(root,&st)||!S_ISDIR(st.st_mode)){s->unknown++;return 0;}
+ snprintf(p,sizeof p,"%s/%s",root,title);
+ if(lstat(p,&st)){if(errno==ENOENT)s->missing++;else s->unknown++;}
+ else if(S_ISDIR(st.st_mode))s->present++;else s->unknown++;
+ return 0;
+}
+int sg_db_reconcile(uint32_t user,struct sg_db_summary *s){
+ if(!s)return -1;
+ memset(s,0,sizeof *s);
+ struct sg_db_context c={user,s};
+ return sg_db_user_inventory(user,classify,&c);
+}
