@@ -20,7 +20,9 @@ jobs:
       - name: Compile discovery
         run: cc -Wall -Wextra -Werror src/discovery.c -o discovery
       - name: Install native development dependencies
-        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev libmbedtls-dev libsqlite3-dev
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev libmbedtls-dev libsqlite3-dev inkscape python3-pil
+      - name: Generate PlayStation button icons
+        run: python3 assets/build_ps4_button_icons.py assets/ps4-gamepad-icons.svg src/button_icons_generated.h
       - name: Compile and link full dashboard
         run: |
           cc -std=gnu11 -Wall -Wextra $(sdl2-config --cflags) src/{ps4_main,export,snapshot,catalog,history,integrity,verify,restore,batch,schedule,settings,trash,pin,pin_guard,pin_store,usb_guard,save_db}.c $(sdl2-config --libs) -lmbedcrypto -lsqlite3 -o saveguard-native
