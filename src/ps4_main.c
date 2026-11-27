@@ -123,6 +123,9 @@ int main(void){
  }
  continue;
  }
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_X&&(selected==3||selected==9||selected==10)&&backup_count){
+ backup_index=(backup_index+1)%backup_count;confirm=0;continue;
+ }
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)selected=(selected+1)%12;
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP)selected=(selected+11)%12;
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_B){if(confirm)confirm=0;else running=0;}
@@ -144,7 +147,7 @@ int main(void){
  else confirm=1;
  }
  else if(selected==10){
- if(!trash_view){backup_count=backup_index=0;trash_view=1;status=sg_trash_history(usb,add_backup,NULL)<0?2:1;}
+ if(!trash_view||!backup_count){backup_count=backup_index=0;trash_view=1;status=sg_trash_history(usb,add_backup,NULL)<0?2:1;}
  else if(backup_count&&confirm){if(sg_pin_load(usb,&pin_record)){status=2;confirm=0;}else{clear_pin();pending_trash=2;pin_mode=2;confirm=0;}}
  else if(backup_count)confirm=1;
  else status=2;
@@ -181,6 +184,7 @@ int main(void){
  if(selected==3||selected==4||selected==5||selected==9||selected==10){
  if(backup_count){snprintf(info,sizeof info,"BACKUP %u OF %u %s",backup_index+1,backup_count,backups[backup_index].title);label(r,450,610,2,info);}
  else label(r,450,610,2,"NO BACKUPS LOADED");
+ if(selected==3||selected==9||selected==10)label(r,450,655,2,"SQUARE NEXT BACKUP");
  }
  if(selected==4){snprintf(info,sizeof info,"VERIFIED FILES %u",verified_files);label(r,450,655,2,info);}
  if(selected==6){snprintf(info,sizeof info,"TOTAL %u OK %u FAILED %u",batch.attempted,batch.succeeded,batch.failed);label(r,450,610,2,info);}
