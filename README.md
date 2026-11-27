@@ -20,14 +20,14 @@ Prototype for PS4 firmware 11.00 / GoldHEN. Current development work is on the `
 
 Use PS4's supported cloud or USB saved-data backups when available. A full-console backup restore erases current console data, so verify the backup and its contents before selecting Restore PS4. Apollo Save Tool can import/export saves that still exist or are already available as files; it is not a deleted-sector recovery tool.
 
-## Controller button icons
+## Dashboard typography and controller icons
 
-The dashboard uses the colored PlayStation button glyphs from [flat-gamepad-icons](https://github.com/RobTheFiveNine/flat-gamepad-icons) by RobTheFiveNine, licensed CC BY-SA 4.0. The source SVG is retained in `assets/ps4-gamepad-icons.svg`; the build rasterizes the four symbols into anti-aliased RGBA textures bundled into the application. Attribution and license details are in `assets/ATTRIBUTION.md`.
+The bitmap text was replaced with a smooth, anti-aliased DejaVu Sans Bold atlas, generated at build time and bundled with the app. The PS4 glyphs come from [flat-gamepad-icons](https://github.com/RobTheFiveNine/flat-gamepad-icons) by RobTheFiveNine, licensed CC BY-SA 4.0. The artwork source and font/license notices are retained in `assets/`.
 
 ## Build status
 
-- The prototype PKG with the bundled full-color controller glyphs compiled successfully in GitHub Actions on November 27, 2026 (source commit `781eaecf429cee02afa0939335f89698fe8cd927`, run #47). The workflow artifact is `SaveGuard-prototype` (18,517,066 bytes; ZIP SHA-256 `d185808ee3a43e0419f1ccd35612f6cf362c3e3b4dfe73667deadb97f4586f80`).
-- Native dashboard compilation and safety tests passed in GitHub Actions run #73 after the generated icon header was wired into the native build.
+- The prototype PKG with smooth typography and full-color controller glyphs compiled successfully in GitHub Actions on November 27, 2026 (commit `c6f96267fbcc916cb64b26b191dcc621a1eeb98a`, run #49). The workflow artifact is `SaveGuard-prototype` (18 MB; ZIP SHA-256 `49e2bed00320904be6ecffdf5526329fedac3488673bd8bce434927082cb30cf`).
+- Native dashboard compilation and safety tests passed in GitHub Actions run #75 with the generated font and icon atlases.
 - The user successfully opened SaveGuard on a PS4, but screenshots show `USB NOT READY`, `FILES 0 / ERRORS 1` on SCAN FILES, and a subsequent application crash `CE-34878-0`.
 - Installation and runtime behavior are unresolved. Do not treat this artifact as a usable release.
 - The prototype does not perform sector-level undelete or restore a staged snapshot back into an active PS4 save-data slot.
