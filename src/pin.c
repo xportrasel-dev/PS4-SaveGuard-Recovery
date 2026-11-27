@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <mbedtls/md.h>
 #include <mbedtls/pkcs5.h>
+#include <mbedtls/version.h>
 #define SG_PIN_ROUNDS 200000
 struct sg_pin_record {unsigned char salt[16],hash[32];};
 static int derive(const char *pin,const unsigned char salt[16],unsigned char out[32]){
@@ -10,8 +11,14 @@ static int derive(const char *pin,const unsigned char salt[16],unsigned char out
  for(size_t i=0;i<n;i++)if(pin[i]<'0'||pin[i]>'9')return -1;
  mbedtls_md_context_t ctx;mbedtls_md_init(&ctx);
  const mbedtls_md_info_t *md=mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
- int rc=md?mbedtls_md_setup(&ctx,md,1):-1;
+ int rc=0;
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+ (void)ctx;(void)md;
+ rc=mbedtls_pkcs5_pbkdf2_hmac_ext(MBEDTLS_MD_SHA256,(const unsigned char *)pin,n,salt,16,SG_PIN_ROUNDS,32,out);
+#else
+ rc=md?mbedtls_md_setup(&ctx,md,1):-1;
  if(!rc)rc=mbedtls_pkcs5_pbkdf2_hmac(&ctx,(const unsigned char *)pin,n,salt,16,SG_PIN_ROUNDS,32,out);
+#endif
  mbedtls_md_free(&ctx);return rc?-1:0;
 }
 /* Caller must supply a fresh cryptographically random salt. */
