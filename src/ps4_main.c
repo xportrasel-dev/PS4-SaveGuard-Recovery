@@ -148,6 +148,50 @@ static void label(SDL_Renderer *r,int x,int y,int scale,const char *s){
  for(int i=0;i<5;i++)for(int j=0;j<7;j++)if(glyph[k][i]&(1<<j))rect(r,x+i*scale,y+j*scale,scale,scale,230,240,250);
  }
 }
+
+enum { SG_ICON_CROSS, SG_ICON_CIRCLE, SG_ICON_SQUARE, SG_ICON_TRIANGLE };
+static void icon_circle(SDL_Renderer *r,int cx,int cy,int radius){
+ for(int thick=0;thick<2;thick++){
+  int rad=radius-thick;
+  for(int dx=-rad;dx<=rad;dx++){
+   int dy=rad;
+   while(dx*dx+dy*dy>rad*rad)dy--;
+   SDL_RenderDrawPoint(r,cx+dx,cy+dy);
+   SDL_RenderDrawPoint(r,cx+dx,cy-dy);
+  }
+ }
+}
+static void button_icon(SDL_Renderer *r,int x,int y,int size,int which){
+ Uint8 red=230,green=240,blue=250;
+ if(which==SG_ICON_CROSS){red=90;green=175;blue=255;}
+ else if(which==SG_ICON_CIRCLE){red=255;green=90;blue=110;}
+ else if(which==SG_ICON_SQUARE){red=245;green=125;blue=200;}
+ else if(which==SG_ICON_TRIANGLE){red=100;green=230;blue=145;}
+ SDL_SetRenderDrawColor(r,red,green,blue,255);
+ int pad=3,right=x+size-4,bottom=y+size-4,mid=x+size/2;
+ if(which==SG_ICON_CROSS){
+  for(int t=-1;t<=1;t++){
+   SDL_RenderDrawLine(r,x+pad+t,y+pad,x+size-pad+t,y+size-pad);
+   SDL_RenderDrawLine(r,x+size-pad+t,y+pad,x+pad+t,y+size-pad);
+  }
+ }else if(which==SG_ICON_CIRCLE){
+  icon_circle(r,mid,y+size/2,size/2-3);
+ }else if(which==SG_ICON_SQUARE){
+  SDL_Rect q={x+pad,y+pad,size-2*pad,size-2*pad};
+  SDL_RenderDrawRect(r,&q);
+  q.x++;q.y++;q.w-=2;q.h-=2;SDL_RenderDrawRect(r,&q);
+ }else if(which==SG_ICON_TRIANGLE){
+  for(int t=-1;t<=1;t++){
+   SDL_RenderDrawLine(r,mid,y+pad+t,right,bottom+t);
+   SDL_RenderDrawLine(r,right,bottom+t,x+pad,bottom+t);
+   SDL_RenderDrawLine(r,x+pad,bottom+t,mid,y+pad+t);
+  }
+ }
+}
+static void button_label(SDL_Renderer *r,int x,int y,int size,int which,int scale,const char *text){
+ button_icon(r,x,y,size,which);
+ label(r,x+size+7,y+(size-7*scale)/2,scale,text);
+}
 /* Prototype visual dashboard. No internal disk writes or automatic backup. */
 int main(void){
  if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER))return 1;
@@ -267,7 +311,13 @@ int main(void){
  char info[100];snprintf(info,sizeof info,"FILES %u   ERRORS %u",files,errors);
  label(r,450,345,3,info);
  label(r,450,390,3,status==2?"ERROR OR PARTIAL":status==1?"OPERATION COMPLETE":"READY");
- label(r,450,440,3,confirm?(selected==7?"PRESS A AGAIN TO ENABLE":selected==10?"PRESS A TO RESTORE BACKUP":selected==9?"PRESS A TO MOVE TO TRASH":selected==12?"A AGAIN THEN ENTER PIN":"PRESS A AGAIN TO COPY"):"A SELECT   B BACK");
+ if(confirm){
+ const char *action=selected==7?"ENABLE AUTO BACKUP":selected==10?"RESTORE TRASH BACKUP":selected==9?"MOVE BACKUP TO TRASH":selected==12?"DELETE AFTER PIN":selected==5?"STAGE RECOVERY COPY":selected==6?"BACKUP ALL GAMES":"COPY BACKUP";
+ button_label(r,450,440,22,SG_ICON_CROSS,3,action);
+ }else{
+ button_label(r,450,440,22,SG_ICON_CROSS,3,"SELECT");
+ button_label(r,620,440,22,SG_ICON_CIRCLE,3,"BACK");
+ }
  label(r,450,485,2,"LEFT RIGHT SELECT USB");
  label(r,450,510,2,sg_usb_ready(usb)==0?"USB MOUNT DETECTED":"USB NOT READY");
  label(r,450,540,2,"EXISTING FILES ONLY");
@@ -276,7 +326,7 @@ int main(void){
  if(selected==3||selected==4||selected==5||selected==9||selected==10){
  if(backup_count){snprintf(info,sizeof info,"BACKUP %u OF %u %s",backup_index+1,backup_count,backups[backup_index].title);label(r,450,610,2,info);}
  else label(r,450,610,2,"NO BACKUPS LOADED");
- if(selected==3||selected==9||selected==10)label(r,450,655,2,"SQUARE NEXT BACKUP");
+ if(selected==3||selected==9||selected==10)button_label(r,450,650,18,SG_ICON_SQUARE,2,"NEXT BACKUP");
  }
  if(selected==8)label(r,450,610,2,"CREATE OR CHANGE PIN");
  if(selected==4){snprintf(info,sizeof info,"VERIFIED FILES %u",verified_files);label(r,450,655,2,info);}
@@ -302,9 +352,13 @@ int main(void){
  snprintf(info,sizeof info,"PAIR %u/%u USER %08X TITLE %s",pair_index+1,pair_count,(unsigned)pairs[pair_index].user,pairs[pair_index].title);label(r,450,565,2,info);
  snprintf(info,sizeof info,"SLOT %.30s",pairs[pair_index].slot);label(r,450,588,2,info);
  const char *pair_state=pairs[pair_index].state==1?"COMPLETE":pairs[pair_index].state==0?"INCOMPLETE":pairs[pair_index].state==2?"AMBIGUOUS":"UNKNOWN";
- snprintf(info,sizeof info,"STATE %s   X NEXT PAIR",pair_state);label(r,450,611,2,info);
- }else label(r,450,565,2,"NO PAIRS FOUND   X NEXT PAIR");
- snprintf(info,sizeof info,"ORPHAN %u FAIL %u DB %u USERS %u",orphan_found,orphan_failed,db_summary.rows,db_users);label(r,450,638,2,info);
+ snprintf(info,sizeof info,"STATE %s",pair_state);label(r,450,611,2,info);
+ button_label(r,450,628,18,SG_ICON_SQUARE,2,"NEXT PAIR");
+ }else{
+ label(r,450,565,2,"NO PAIRS FOUND");
+ button_label(r,450,590,18,SG_ICON_SQUARE,2,"NEXT PAIR");
+ }
+ snprintf(info,sizeof info,"ORPHAN %u FAIL %u DB %u USERS %u",orphan_found,orphan_failed,db_summary.rows,db_users);label(r,450,655,2,info);
  }
  if(pin_mode){
  rect(r,420,150,820,520,20,34,54);
@@ -312,8 +366,10 @@ int main(void){
  snprintf(info,sizeof info,"DIGIT %u",pin_digit);label(r,450,250,4,info);
  for(unsigned i=0;i<pin_len;i++)rect(r,450+i*32,330,20,20,230,240,250);
  label(r,450,390,2,"UP DOWN CHANGE DIGIT");
- label(r,450,430,2,"X ADD   LEFT REMOVE");
- label(r,450,470,2,"TRIANGLE SUBMIT   O CANCEL");
+ button_label(r,450,425,18,SG_ICON_CROSS,2,"ADD");
+ label(r,585,430,2,"LEFT REMOVE");
+ button_label(r,450,465,18,SG_ICON_TRIANGLE,2,"SUBMIT");
+ button_label(r,610,465,18,SG_ICON_CIRCLE,2,"CANCEL");
  label(r,450,510,2,"6 TO 12 DIGITS");
  }
  SDL_RenderPresent(r);SDL_Delay(16);
