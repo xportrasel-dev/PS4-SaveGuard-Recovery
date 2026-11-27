@@ -1,3 +1,4 @@
+int sg_usb_ready(unsigned);
 #include <stdio.h>
 #include <string.h>
 #include <dirent.h>
@@ -26,7 +27,7 @@ static int copy_tree(const char *src,const char *dst,unsigned depth,FILE *hashes
 }
 /* Raw file snapshot, not a mount-aware or guaranteed restorable PS4 save. */
 int sg_snapshot(const char *src,unsigned usb){
- if(usb>7)return -1;
+ if(sg_usb_ready(usb))return -1;
  char root[128],dst[256],marker[300],data[300],meta[300],user[9]={0},title[10]={0}; struct stat st;
  int consumed=0;
  if(sscanf(src,"/user/home/%8[0123456789abcdefABCDEF]/savedata/%9[CUSA0123456789]%n",user,title,&consumed)!=2 || src[consumed] || strlen(user)!=8 || strlen(title)!=9 || strncmp(title,"CUSA",4))return -1;
