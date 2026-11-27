@@ -1,0 +1,21 @@
+name: SaveGuard native safety tests
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/native-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test export
+        run: |
+          cc -Wall -Wextra -Werror src/export.c tests/export_test.c -o export_test
+          ./export_test
+      - name: Compile discovery
+        run: cc -Wall -Wextra -Werror src/discovery.c -o discovery
