@@ -243,6 +243,14 @@ jobs:
         sed -i 's|^TITLE .*|TITLE := PS4 SaveGuard Prototype|;s|^VERSION .*|VERSION := 00.10|;s|^TITLE_ID .*|TITLE_ID := SGRD00001|;s|^CONTENT_ID .*|CONTENT_ID := IV0000-SGRD00001_00-SAVEGUARD0000001|' Makefile
         cp -R SDL-PS4/include/* "${OO_PS4_TOOLCHAIN}/include/"
         rm -f sce_sys/param.sfo
+    - name: Install icon asset tooling
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y inkscape python3-pil
+
+    - name: Generate smooth PlayStation button icons
+      run: python3 saveguard/assets/build_ps4_button_icons.py saveguard/assets/ps4-gamepad-icons.svg source/button_icons_generated.h
+
     - name: Build prototype
       run: make
     - name: Upload prototype
