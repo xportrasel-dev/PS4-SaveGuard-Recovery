@@ -12,6 +12,16 @@ typedef void (*sg_catalog_cb)(const char *,const char *,const char *,void *);
 int sg_catalog(sg_catalog_cb,void *);
 static struct {char user[9],title[10],path[256];} games[512];
 static unsigned game_count,game_index;
+typedef void (*sg_history_cb)(const char *,const char *,const char *,long long,void *);
+int sg_history(unsigned,sg_history_cb,void *);
+static struct {char title[10];long long stamp;} backups[512];
+static unsigned backup_count,backup_index;
+static void add_backup(const char *p,const char *u,const char *t,long long stamp,void *ctx){
+ (void)p;(void)u;(void)ctx;
+ if(backup_count>=512)return;
+ snprintf(backups[backup_count].title,10,"%s",t);
+ backups[backup_count++].stamp=stamp;
+}
 static void add_game(const char *u,const char *t,const char *p,void *ctx){
  (void)ctx;
  if(game_count>=512){errors++;return;}
@@ -60,15 +70,16 @@ int main(void){
  while(SDL_PollEvent(&e)){
  if(e.type==SDL_QUIT)running=0;
  if(e.type==SDL_CONTROLLERBUTTONDOWN){
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)selected=(selected+1)%4;
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP)selected=(selected+3)%4;
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)selected=(selected+1)%5;
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP)selected=(selected+4)%5;
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_B){if(confirm)confirm=0;else running=0;}
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_LEFT){usb=(usb+7)%8;confirm=0;}
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_RIGHT){usb=(usb+1)%8;confirm=0;}
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_LEFT){usb=(usb+7)%8;confirm=0;backup_count=backup_index=0;}
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_RIGHT){usb=(usb+1)%8;confirm=0;backup_count=backup_index=0;}
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_A){
  if(selected==0){files=errors=0;game_count=game_index=0;if(sg_catalog(add_game,NULL)<0)errors++;for(unsigned i=0;i<game_count;i++)inventory(games[i].path,12);status=errors?2:1;confirm=0;}
  else if(selected==1){if(!game_count){status=2;confirm=0;}else if(confirm){status=sg_snapshot(games[game_index].path,usb)?2:1;confirm=0;}else confirm=1;}
  else if(selected==2){if(game_count)game_index=(game_index+1)%game_count;status=0;confirm=0;}
+ else if(selected==3){if(backup_count)backup_index=(backup_index+1)%backup_count;else {backup_index=0;status=sg_history(usb,add_backup,NULL)<0?2:1;}}
  else running=0;
  }
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP||e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)confirm=0;
@@ -76,14 +87,14 @@ int main(void){
  }
  SDL_SetRenderDrawColor(r,12,20,36,255);SDL_RenderClear(r);
  rect(r,40,40,1200,85,26,47,75);
- for(int i=0;i<4;i++)rect(r,40,150+i*125,350,105,i==selected?40:25,i==selected?110:40,i==selected?185:65);
+ for(int i=0;i<5;i++)rect(r,40,150+i*100,350,85,i==selected?40:25,i==selected?110:40,i==selected?185:65);
  rect(r,420,150,820,480,20,34,54);
  rect(r,450,180,760,24,status==2?190:40,status==1?170:65,80);
  if(confirm)rect(r,450,230,760,45,190,120,30);
  for(unsigned i=0;i<8;i++)rect(r,450+i*90,300,70,35,i==usb?40:30,i==usb?150:60,100);
  label(r,65,65,5,"PS4 SAVEGUARD");
- const char *names[]={"SCAN FILES","USB BACKUP","NEXT GAME","EXIT"};
- for(int i=0;i<4;i++)label(r,65,188+i*125,3,names[i]);
+ const char *names[]={"SCAN FILES","USB BACKUP","NEXT GAME","HISTORY","EXIT"};
+ for(int i=0;i<5;i++)label(r,65,180+i*100,3,names[i]);
  char info[100];snprintf(info,sizeof info,"FILES %u   ERRORS %u",files,errors);
  label(r,450,345,3,info);
  label(r,450,390,3,status==2?"ERROR OR PARTIAL":status==1?"OPERATION COMPLETE":"READY");
@@ -92,6 +103,10 @@ int main(void){
  label(r,450,530,2,"EXISTING FILES ONLY");
  if(game_count){snprintf(info,sizeof info,"GAME %u OF %u  %s",game_index+1,game_count,games[game_index].title);label(r,450,570,3,info);}else label(r,450,570,3,"NO GAMES SCANNED");
  for(unsigned i=0;i<8;i++){char num[2]={(char)('0'+i),0};label(r,475+i*90,308,2,num);}
+ if(selected==3){
+ if(backup_count){snprintf(info,sizeof info,"BACKUP %u OF %u %s",backup_index+1,backup_count,backups[backup_index].title);label(r,450,610,2,info);}
+ else label(r,450,610,2,"NO BACKUPS LOADED");
+ }
  SDL_RenderPresent(r);SDL_Delay(16);
  }
  if(pad)SDL_GameControllerClose(pad);
