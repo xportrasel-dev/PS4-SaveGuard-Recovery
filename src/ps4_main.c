@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <time.h>
 int sg_snapshot(const char *,unsigned);
+int sg_usb_ready(unsigned);
 static void rect(SDL_Renderer *r,int x,int y,int w,int h,int a,int b,int c){
  SDL_Rect q={x,y,w,h};SDL_SetRenderDrawColor(r,a,b,c,255);SDL_RenderFillRect(r,&q);
 }
@@ -126,7 +127,8 @@ int main(void){
  label(r,450,390,3,status==2?"ERROR OR PARTIAL":status==1?"OPERATION COMPLETE":"READY");
  label(r,450,440,3,confirm?(selected==7?"PRESS X TO ENABLE AUTO":"PRESS X AGAIN TO COPY"):"X SELECT   O BACK");
  label(r,450,485,2,"LEFT RIGHT SELECT USB");
- label(r,450,530,2,"EXISTING FILES ONLY");
+ label(r,450,510,2,sg_usb_ready(usb)==0?"USB MOUNT DETECTED":"USB NOT READY");
+ label(r,450,540,2,"EXISTING FILES ONLY");
  if(game_count){snprintf(info,sizeof info,"GAME %u OF %u  %s",game_index+1,game_count,games[game_index].title);label(r,450,570,3,info);}else label(r,450,570,3,"NO GAMES SCANNED");
  for(unsigned i=0;i<8;i++){char num[2]={(char)('0'+i),0};label(r,475+i*90,308,2,num);}
  if(selected==3||selected==4||selected==5){
