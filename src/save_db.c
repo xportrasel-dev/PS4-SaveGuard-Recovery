@@ -88,3 +88,18 @@ int sg_orphan_titles(uint32_t user,sg_orphan_cb cb,void *ctx){
  }
  done:if(d)closedir(d);sqlite3_finalize(st);sqlite3_close(db);return rc;
 }
+
+int sg_orphan_scan_all(sg_orphan_cb cb,void *ctx,unsigned *found,unsigned *failed){
+ if(!cb||!found||!failed)return -1;
+ *found=*failed=0;
+ DIR *d=opendir("/user/home");if(!d)return -1;
+ unsigned users=0;int rc=0;
+ for(;;){
+ errno=0;struct dirent *e=readdir(d);if(!e){if(errno)rc=-1;break;}
+ if(strlen(e->d_name)!=8||strspn(e->d_name,"0123456789abcdefABCDEF")!=8)continue;
+ if(++users>256){rc=-1;break;}
+ int n=sg_orphan_titles((uint32_t)strtoul(e->d_name,NULL,16),cb,ctx);
+ if(n<0){++*failed;rc=-1;}else *found+=(unsigned)n;
+ }
+ closedir(d);return users?rc:-1;
+}
