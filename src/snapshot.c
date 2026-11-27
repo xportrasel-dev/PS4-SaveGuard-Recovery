@@ -5,13 +5,16 @@ int sg_usb_ready(unsigned);
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
+int sg_verify_staged(const char *,unsigned *);
 int sg_export(const char *,const char *);
 int sg_hash_file(const char *,unsigned char [32]);
 static int copy_tree(const char *src,const char *dst,unsigned depth,FILE *hashes,const char *prefix){
  if(!depth)return -1;
  DIR *d=opendir(src); if(!d)return -1;
  int rc=0; struct dirent *e;
- while((e=readdir(d))){
+ for(;;){
+ errno=0;e=readdir(d);if(!e){if(errno)rc=-1;break;}
  if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
  char a[4096],b[4096],rel[4096]; struct stat st;
  int z=snprintf(rel,sizeof rel,"%s%s",prefix,e->d_name);
@@ -27,11 +30,12 @@ static int copy_tree(const char *src,const char *dst,unsigned depth,FILE *hashes
 }
 /* Raw file snapshot, not a mount-aware or guaranteed restorable PS4 save. */
 int sg_snapshot(const char *src,unsigned usb){
- if(sg_usb_ready(usb))return -1;
+ if(!src||sg_usb_ready(usb))return -1;
  char root[128],dst[256],marker[300],data[300],meta[300],user[9]={0},title[10]={0}; struct stat st;
  int consumed=0;
  if(sscanf(src,"/user/home/%8[0123456789abcdefABCDEF]/savedata/%9[CUSA0123456789]%n",user,title,&consumed)!=2 || src[consumed] || strlen(user)!=8 || strlen(title)!=9 || strncmp(title,"CUSA",4))return -1;
  for(int i=4;i<9;i++)if(title[i]<'0'||title[i]>'9')return -1;
+ if(lstat(src,&st)||!S_ISDIR(st.st_mode))return -1;
  snprintf(root,sizeof root,"/mnt/usb%u",usb);
  if(stat(root,&st)||!S_ISDIR(st.st_mode))return -1;
  long long stamp=(long long)time(NULL);
@@ -42,13 +46,14 @@ int sg_snapshot(const char *src,unsigned usb){
  char hp[300];snprintf(hp,sizeof hp,"%s/checksums.sha256",dst);
  FILE *h=fopen(hp,"wx");if(!h)return -1;
  int copied=copy_tree(src,data,16,h,"");
- int hc=fclose(h);if(copied||hc)return -1;
+ int hc=fflush(h);if(!hc)hc=fsync(fileno(h));if(fclose(h))hc=-1;if(copied||hc)return -1;
  snprintf(meta,sizeof meta,"%s/manifest.txt",dst);
  FILE *m=fopen(meta,"wx");if(!m)return -1;
  int written=fprintf(m,"format=2\nuser=%s\ntitle=%s\ncreated=%lld\nkind=raw-files\n",user,title,stamp);
- int closed=fclose(m);if(written<0||closed)return -1;
+ int closed=fflush(m);if(!closed)closed=fsync(fileno(m));if(fclose(m))closed=-1;if(written<0||closed)return -1;
+ if(sg_usb_ready(usb)||sg_verify_staged(dst,NULL))return -1;
  snprintf(marker,sizeof marker,"%s/.complete",dst);
  FILE *f=fopen(marker,"wx");if(!f)return -1;
  if(fputs("Verified file copies; restore compatibility untested.\n",f)<0){fclose(f);unlink(marker);return -1;}
- if(fclose(f)){unlink(marker);return -1;}return 0;
+ int done=fflush(f);if(!done)done=fsync(fileno(f));if(fclose(f))done=-1;if(done){unlink(marker);return -1;}return 0;
 }
