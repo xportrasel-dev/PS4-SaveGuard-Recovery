@@ -7,6 +7,15 @@ int sg_usb_ready(unsigned);
 #include <errno.h>
 struct sg_pin_record {unsigned char salt[16],hash[32];};
 static int path_for(unsigned usb,char p[128]){
+ (void)usb;
+ const char *root="/data/SaveGuard";struct stat st;
+ if(lstat(root,&st)){
+  if(errno!=ENOENT||mkdir(root,0700)||lstat(root,&st))return -1;
+ }
+ if(!S_ISDIR(st.st_mode))return -1;
+ snprintf(p,128,"%s/SaveGuard-pin.bin",root);return 0;
+}
+static int legacy_path_for(unsigned usb,char p[128]){
  if(sg_usb_ready(usb))return -1;
  char root[64];struct stat st;
  snprintf(root,sizeof root,"/mnt/usb%u",usb);
@@ -24,9 +33,14 @@ int sg_pin_store_new(unsigned usb,const struct sg_pin_record *r){
  if(rc){unlink(p);return -1;}return 0;
 }
 int sg_pin_load(unsigned usb,struct sg_pin_record *r){
- char p[128];unsigned char b[52];struct stat st;
+ char p[128],legacy[128];unsigned char b[52];struct stat st;
  if(!r||path_for(usb,p))return -1;
- int fd=open(p,O_RDONLY|O_NOFOLLOW);if(fd<0)return -1;
+ int fd=open(p,O_RDONLY|O_NOFOLLOW);
+ if(fd<0&&errno==ENOENT){
+  if(legacy_path_for(usb,legacy))return -1;
+  fd=open(legacy,O_RDONLY|O_NOFOLLOW);
+ }
+ if(fd<0)return -1;
  if(fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_size!=sizeof b){close(fd);return -1;}
  size_t off=0;
  while(off<sizeof b){ssize_t n=read(fd,b+off,sizeof b-off);if(n<0&&errno==EINTR)continue;if(n<=0)break;off+=(size_t)n;}
