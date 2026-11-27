@@ -43,6 +43,8 @@ static int pin_mode;
 int sg_trash_move(unsigned,const char *,int);
 int sg_guard_consume(struct sg_pin_guard *,uint64_t);
 static int pending_trash;
+static int trash_view;
+int sg_trash_history(unsigned,sg_history_cb,void *);
 static void clear_pin(void){volatile char *p=pin_input;for(unsigned i=0;i<13;i++)p[i]=0;pin_len=pin_digit=0;}
 int sg_settings_save(const struct sg_schedule *);
 int sg_settings_load(struct sg_schedule *,unsigned,uint64_t);
@@ -114,32 +116,38 @@ int main(void){
  int rc=pin_mode==1?(sg_pin_create_random(&pin_record,pin_input)||sg_pin_store_new(usb,&pin_record)):sg_guard_attempt(&guard,&pin_record,pin_input,now_seconds());
  if(!rc&&pending_trash){
  const char *name=backup_count?strrchr(backups[backup_index].path,'/'):NULL;
- rc=sg_guard_consume(&guard,now_seconds())||!name||sg_trash_move(usb,name+1,0);
- if(!rc)backup_count=backup_index=0;
+ rc=sg_guard_consume(&guard,now_seconds())||!name||sg_trash_move(usb,name+1,pending_trash==2);
+ if(!rc){backup_count=backup_index=0;trash_view=0;}
  }
  pending_trash=0;status=rc?2:1;clear_pin();pin_mode=0;
  }
  continue;
  }
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)selected=(selected+1)%11;
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP)selected=(selected+10)%11;
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)selected=(selected+1)%12;
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP)selected=(selected+11)%12;
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_B){if(confirm)confirm=0;else running=0;}
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_LEFT){usb=(usb+7)%8;confirm=0;backup_count=backup_index=0;}
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_RIGHT){usb=(usb+1)%8;confirm=0;backup_count=backup_index=0;}
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_LEFT){usb=(usb+7)%8;confirm=0;backup_count=backup_index=0;trash_view=0;}
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_RIGHT){usb=(usb+1)%8;confirm=0;backup_count=backup_index=0;trash_view=0;}
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_A){
  if(selected==0){files=errors=0;game_count=game_index=0;if(sg_catalog(add_game,NULL)<0)errors++;for(unsigned i=0;i<game_count;i++)inventory(games[i].path,12);status=errors?2:1;confirm=0;}
  else if(selected==1){if(!game_count){status=2;confirm=0;}else if(confirm){status=sg_snapshot(games[game_index].path,usb)?2:1;confirm=0;}else confirm=1;}
  else if(selected==2){if(game_count)game_index=(game_index+1)%game_count;status=0;confirm=0;}
- else if(selected==3){if(backup_count)backup_index=(backup_index+1)%backup_count;else {backup_index=0;status=sg_history(usb,add_backup,NULL)<0?2:1;}}
+ else if(selected==3){if(trash_view){backup_count=backup_index=0;trash_view=0;}if(backup_count)backup_index=(backup_index+1)%backup_count;else {backup_index=0;status=sg_history(usb,add_backup,NULL)<0?2:1;}}
  else if(selected==4){verified_files=0;status=backup_count&&!sg_verify_snapshot(backups[backup_index].path,&verified_files)?1:2;}
  else if(selected==5){if(!backup_count){status=2;confirm=0;}else if(confirm){status=sg_stage_restore(backups[backup_index].path)?2:1;confirm=0;}else confirm=1;}
  else if(selected==6){if(confirm){status=sg_batch_backup(usb,&batch)?2:1;confirm=0;backup_count=backup_index=0;}else confirm=1;}
  else if(selected==7){if(schedule.enabled){schedule.enabled=0;confirm=0;status=sg_settings_save(&schedule)?2:1;}else if(confirm){status=sg_schedule_configure(&schedule,1,usb,86400,now_seconds())?2:1;if(status==1&&sg_settings_save(&schedule)){schedule.enabled=0;status=2;}confirm=0;}else confirm=1;}
  else if(selected==8){clear_pin();pin_mode=sg_pin_load(usb,&pin_record)==0?2:1;}
  else if(selected==9){
- if(!backup_count||sg_pin_load(usb,&pin_record)){status=2;confirm=0;}
+ if(!backup_count||trash_view||sg_pin_load(usb,&pin_record)){status=2;confirm=0;}
  else if(confirm){clear_pin();pending_trash=1;pin_mode=2;confirm=0;}
  else confirm=1;
+ }
+ else if(selected==10){
+ if(!trash_view){backup_count=backup_index=0;trash_view=1;status=sg_trash_history(usb,add_backup,NULL)<0?2:1;}
+ else if(backup_count&&confirm){if(sg_pin_load(usb,&pin_record)){status=2;confirm=0;}else{clear_pin();pending_trash=2;pin_mode=2;confirm=0;}}
+ else if(backup_count)confirm=1;
+ else status=2;
  }
  else running=0;
  }
@@ -153,24 +161,24 @@ int main(void){
  }
  SDL_SetRenderDrawColor(r,12,20,36,255);SDL_RenderClear(r);
  rect(r,40,40,1200,85,26,47,75);
- for(int i=0;i<11;i++)rect(r,40,150+i*47,350,42,i==selected?40:25,i==selected?110:40,i==selected?185:65);
+ for(int i=0;i<12;i++)rect(r,40,150+i*44,350,39,i==selected?40:25,i==selected?110:40,i==selected?185:65);
  rect(r,420,150,820,480,20,34,54);
  rect(r,450,180,760,24,status==2?190:40,status==1?170:65,80);
  if(confirm)rect(r,450,230,760,45,190,120,30);
  for(unsigned i=0;i<8;i++)rect(r,450+i*90,300,70,35,i==usb?40:30,i==usb?150:60,100);
  label(r,65,65,5,"PS4 SAVEGUARD");
- const char *names[]={"SCAN FILES","USB BACKUP","NEXT GAME","HISTORY","VERIFY BACKUP","STAGE RECOVERY","BACKUP ALL","AUTO BACKUP","PIN SECURITY","TRASH BACKUP","EXIT"};
- for(int i=0;i<11;i++)label(r,65,158+i*47,3,names[i]);
+ const char *names[]={"SCAN FILES","USB BACKUP","NEXT GAME","HISTORY","VERIFY BACKUP","STAGE RECOVERY","BACKUP ALL","AUTO BACKUP","PIN SECURITY","TRASH BACKUP","RESTORE TRASH","EXIT"};
+ for(int i=0;i<12;i++)label(r,65,158+i*44,3,names[i]);
  char info[100];snprintf(info,sizeof info,"FILES %u   ERRORS %u",files,errors);
  label(r,450,345,3,info);
  label(r,450,390,3,status==2?"ERROR OR PARTIAL":status==1?"OPERATION COMPLETE":"READY");
- label(r,450,440,3,confirm?(selected==7?"PRESS X TO ENABLE AUTO":selected==9?"PRESS X TO MOVE TO TRASH":"PRESS X AGAIN TO COPY"):"X SELECT   O BACK");
+ label(r,450,440,3,confirm?(selected==7?"PRESS X TO ENABLE AUTO":selected==10?"PRESS X TO RESTORE BACKUP":selected==9?"PRESS X TO MOVE TO TRASH":"PRESS X AGAIN TO COPY"):"X SELECT   O BACK");
  label(r,450,485,2,"LEFT RIGHT SELECT USB");
  label(r,450,510,2,sg_usb_ready(usb)==0?"USB MOUNT DETECTED":"USB NOT READY");
  label(r,450,540,2,"EXISTING FILES ONLY");
  if(game_count){snprintf(info,sizeof info,"GAME %u OF %u  %s",game_index+1,game_count,games[game_index].title);label(r,450,570,3,info);}else label(r,450,570,3,"NO GAMES SCANNED");
  for(unsigned i=0;i<8;i++){char num[2]={(char)('0'+i),0};label(r,475+i*90,308,2,num);}
- if(selected==3||selected==4||selected==5||selected==9){
+ if(selected==3||selected==4||selected==5||selected==9||selected==10){
  if(backup_count){snprintf(info,sizeof info,"BACKUP %u OF %u %s",backup_index+1,backup_count,backups[backup_index].title);label(r,450,610,2,info);}
  else label(r,450,610,2,"NO BACKUPS LOADED");
  }
