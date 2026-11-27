@@ -5,18 +5,21 @@
 #include <time.h>
 #include <unistd.h>
 int sg_export(const char *,const char *);
-static int copy_tree(const char *src,const char *dst,unsigned depth){
+int sg_hash_file(const char *,unsigned char [32]);
+static int copy_tree(const char *src,const char *dst,unsigned depth,FILE *hashes,const char *prefix){
  if(!depth)return -1;
  DIR *d=opendir(src); if(!d)return -1;
  int rc=0; struct dirent *e;
  while((e=readdir(d))){
  if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
- char a[4096],b[4096]; struct stat st;
+ char a[4096],b[4096],rel[4096]; struct stat st;
+ int z=snprintf(rel,sizeof rel,"%s%s",prefix,e->d_name);
+ if(z<0||(size_t)z>=sizeof rel||strchr(rel,'\n')||strchr(rel,'\r')){rc=-1;break;}
  int x=snprintf(a,sizeof a,"%s/%s",src,e->d_name);
  int y=snprintf(b,sizeof b,"%s/%s",dst,e->d_name);
  if(x<0||y<0||(size_t)x>=sizeof a||(size_t)y>=sizeof b||lstat(a,&st)){rc=-1;break;}
- if(S_ISDIR(st.st_mode)){if(mkdir(b,0700)||copy_tree(a,b,depth-1)){rc=-1;break;}}
- else if(S_ISREG(st.st_mode)){if(sg_export(a,b)){rc=-1;break;}}
+ if(S_ISDIR(st.st_mode)){if((size_t)z+1>=sizeof rel){rc=-1;break;} strcat(rel,"/");if(mkdir(b,0700)||copy_tree(a,b,depth-1,hashes,rel)){rc=-1;break;}}
+ else if(S_ISREG(st.st_mode)){unsigned char digest[32];if(sg_export(a,b)||sg_hash_file(b,digest)){rc=-1;break;} for(int i=0;i<32;i++)if(fprintf(hashes,"%02x",digest[i])<0)rc=-1; if(fprintf(hashes,"  %s\n",rel)<0||rc){rc=-1;break;}}
  else {rc=-1;break;}
  }
  closedir(d);return rc;
@@ -34,10 +37,14 @@ int sg_snapshot(const char *src,unsigned usb){
  snprintf(dst,sizeof dst,"%s/SaveGuard-%s-%s-%lld",root,user,title,stamp);
  if(mkdir(dst,0700))return -1;
  snprintf(data,sizeof data,"%s/data",dst);
- if(mkdir(data,0700)||copy_tree(src,data,16))return -1;
+ if(mkdir(data,0700))return -1;
+ char hp[300];snprintf(hp,sizeof hp,"%s/checksums.sha256",dst);
+ FILE *h=fopen(hp,"wx");if(!h)return -1;
+ int copied=copy_tree(src,data,16,h,"");
+ int hc=fclose(h);if(copied||hc)return -1;
  snprintf(meta,sizeof meta,"%s/manifest.txt",dst);
  FILE *m=fopen(meta,"wx");if(!m)return -1;
- int written=fprintf(m,"format=1\nuser=%s\ntitle=%s\ncreated=%lld\nkind=raw-files\n",user,title,stamp);
+ int written=fprintf(m,"format=2\nuser=%s\ntitle=%s\ncreated=%lld\nkind=raw-files\n",user,title,stamp);
  int closed=fclose(m);if(written<0||closed)return -1;
  snprintf(marker,sizeof marker,"%s/.complete",dst);
  FILE *f=fopen(marker,"wx");if(!f)return -1;
