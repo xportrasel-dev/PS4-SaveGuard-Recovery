@@ -12,16 +12,16 @@ int sg_hash_file(const char *path,unsigned char digest[32]){
  struct stat before,after;
  if(fstat(fd,&before)||!S_ISREG(before.st_mode)){close(fd);return -1;}
  mbedtls_sha256_context ctx;mbedtls_sha256_init(&ctx);
- int rc=mbedtls_sha256_starts_ret(&ctx,0);
+ int rc=mbedtls_sha256_starts(&ctx,0);
  unsigned char buf[16384];ssize_t n;
  while(!rc){
  n=read(fd,buf,sizeof buf);
  if(n<0&&errno==EINTR)continue;
  if(n<0){rc=-1;break;}
  if(!n)break;
- rc=mbedtls_sha256_update_ret(&ctx,buf,(size_t)n);
+ rc=mbedtls_sha256_update(&ctx,buf,(size_t)n);
  }
- if(!rc)rc=mbedtls_sha256_finish_ret(&ctx,digest);
+ if(!rc)rc=mbedtls_sha256_finish(&ctx,digest);
  if(fstat(fd,&after)||before.st_size!=after.st_size||before.st_mtime!=after.st_mtime)rc=-1;
  mbedtls_sha256_free(&ctx);close(fd);return rc? -1:0;
 }
