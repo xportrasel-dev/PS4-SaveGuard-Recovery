@@ -124,3 +124,85 @@ int sg_pair_check(const char *root,const char *slot){
  if(b&&c)return 2;
  return a&&(b||c)?1:0;
 }
+
+
+typedef void (*sg_pair_cb)(uint32_t,const char *,const char *,int,void *);
+struct sg_pair_summary {unsigned complete,incomplete,unknown,ambiguous,total,overflow;};
+static int sg_hex_user(const char *s){
+ return s&&strlen(s)==8&&strspn(s,"0123456789abcdefABCDEF")==8;
+}
+static int sg_title_name(const char *s){
+ return s&&strlen(s)==9&&!strncmp(s,"CUSA",4)&&strspn(s+4,"0123456789")==5;
+}
+static int sg_pair_candidate(const char *root,const char *title,const char *slot,uint32_t user,
+                             sg_pair_cb cb,void *ctx,struct sg_pair_summary *sum){
+ int state=sg_pair_check(root,slot);
+ if(state==1)sum->complete++;
+ else if(state==0)sum->incomplete++;
+ else if(state==2)sum->ambiguous++;
+ else sum->unknown++;
+ if(sum->total>=65536)return -1;
+ sum->total++;
+ if(cb)cb(user,title,slot,state,ctx);
+ return 0;
+}
+/* Read-only scan of save-title directories. A title directory absent from savedata.db is
+   still scanned, so orphaned encrypted saves remain visible as recovery candidates. */
+static int sg_pair_scan_title(uint32_t user,const char *title,sg_pair_cb cb,void *ctx,
+                              struct sg_pair_summary *sum){
+ char root[192];int n=snprintf(root,sizeof root,"/user/home/%08x/savedata/%.9s",(unsigned)user,title);
+ if(n<0||(size_t)n>=sizeof root)return -1;
+ DIR *d=opendir(root);if(!d)return -1;
+ int rc=0;
+ for(;;){
+  errno=0;struct dirent *e=readdir(d);
+  if(!e){if(errno)rc=-1;break;}
+  if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
+  const char *slot=NULL;char candidate[256];
+  if(!strncmp(e->d_name,"sdimg_",6)){
+   slot=e->d_name+6;
+  }else{
+   size_t len=strlen(e->d_name);
+   if(len<=4||strcmp(e->d_name+len-4,".bin"))continue;
+   size_t slen=len-4;if(slen>255)continue;
+   memcpy(candidate,e->d_name,slen);candidate[slen]=0;slot=candidate;
+   char volume[1024];struct stat st;
+   int v=snprintf(volume,sizeof volume,"%s/sdimg_%s",root,slot);
+   if(v<0||(size_t)v>=sizeof volume){rc=-1;continue;}
+   if(!lstat(volume,&st))continue;
+   if(errno!=ENOENT){rc=-1;continue;}
+  }
+  if(!slot||!*slot||strlen(slot)>255||strchr(slot,'/')||!strcmp(slot,".")||!strcmp(slot,".."))continue;
+  if(sg_pair_candidate(root,title,slot,user,cb,ctx,sum))rc=-1;
+ }
+ closedir(d);return rc;
+}
+/* Counts candidate save pairs and reports COMPLETE, INCOMPLETE, UNKNOWN, or AMBIGUOUS
+   records. It never writes to the PS4 filesystem. */
+int sg_pair_scan_all(sg_pair_cb cb,void *ctx,struct sg_pair_summary *sum){
+ if(!sum)return -1;
+ memset(sum,0,sizeof *sum);
+ DIR *users=opendir("/user/home");if(!users)return -1;
+ int rc=0;unsigned seen=0;
+ for(;;){
+  errno=0;struct dirent *u=readdir(users);
+  if(!u){if(errno)rc=-1;break;}
+  if(!sg_hex_user(u->d_name))continue;
+  if(++seen>256){sum->overflow++;rc=-1;break;}
+  char savedata[128];snprintf(savedata,sizeof savedata,"/user/home/%.8s/savedata",u->d_name);
+  DIR *titles=opendir(savedata);
+  if(!titles){if(errno!=ENOENT)rc=-1;continue;}
+  uint32_t user=(uint32_t)strtoul(u->d_name,NULL,16);
+  for(;;){
+   errno=0;struct dirent *t=readdir(titles);
+   if(!t){if(errno)rc=-1;break;}
+   if(!sg_title_name(t->d_name))continue;
+   char path[160];struct stat st;
+   int n=snprintf(path,sizeof path,"%s/%.9s",savedata,t->d_name);
+   if(n<0||(size_t)n>=sizeof path||lstat(path,&st)||!S_ISDIR(st.st_mode)){rc=-1;continue;}
+   if(sg_pair_scan_title(user,t->d_name,cb,ctx,sum))rc=-1;
+  }
+  closedir(titles);
+ }
+ closedir(users);return seen?rc:-1;
+}
