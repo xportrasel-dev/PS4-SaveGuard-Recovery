@@ -1,4 +1,5 @@
 #include <SDL2/SDL.h>
+#include "button_icons_generated.h"
 #include <stdio.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -150,43 +151,26 @@ static void label(SDL_Renderer *r,int x,int y,int scale,const char *s){
 }
 
 enum { SG_ICON_CROSS, SG_ICON_CIRCLE, SG_ICON_SQUARE, SG_ICON_TRIANGLE };
-static void icon_circle(SDL_Renderer *r,int cx,int cy,int radius){
- for(int thick=0;thick<2;thick++){
-  int rad=radius-thick;
-  for(int dx=-rad;dx<=rad;dx++){
-   int dy=rad;
-   while(dx*dx+dy*dy>rad*rad)dy--;
-   SDL_RenderDrawPoint(r,cx+dx,cy+dy);
-   SDL_RenderDrawPoint(r,cx+dx,cy-dy);
-  }
- }
-}
+static SDL_Texture *button_textures[4];
+static const unsigned char *button_pixels[4]={
+ ps_x_pixels,ps_circle_pixels,ps_square_pixels,ps_triangle_pixels
+};
 static void button_icon(SDL_Renderer *r,int x,int y,int size,int which){
- Uint8 red=230,green=240,blue=250;
- if(which==SG_ICON_CROSS){red=90;green=175;blue=255;}
- else if(which==SG_ICON_CIRCLE){red=255;green=90;blue=110;}
- else if(which==SG_ICON_SQUARE){red=245;green=125;blue=200;}
- else if(which==SG_ICON_TRIANGLE){red=100;green=230;blue=145;}
- SDL_SetRenderDrawColor(r,red,green,blue,255);
- int pad=3,right=x+size-4,bottom=y+size-4,mid=x+size/2;
- if(which==SG_ICON_CROSS){
-  for(int t=-1;t<=1;t++){
-   SDL_RenderDrawLine(r,x+pad+t,y+pad,x+size-pad+t,y+size-pad);
-   SDL_RenderDrawLine(r,x+size-pad+t,y+pad,x+pad+t,y+size-pad);
-  }
- }else if(which==SG_ICON_CIRCLE){
-  icon_circle(r,mid,y+size/2,size/2-3);
- }else if(which==SG_ICON_SQUARE){
-  SDL_Rect q={x+pad,y+pad,size-2*pad,size-2*pad};
-  SDL_RenderDrawRect(r,&q);
-  q.x++;q.y++;q.w-=2;q.h-=2;SDL_RenderDrawRect(r,&q);
- }else if(which==SG_ICON_TRIANGLE){
-  for(int t=-1;t<=1;t++){
-   SDL_RenderDrawLine(r,mid,y+pad+t,right,bottom+t);
-   SDL_RenderDrawLine(r,right,bottom+t,x+pad,bottom+t);
-   SDL_RenderDrawLine(r,x+pad,bottom+t,mid,y+pad+t);
-  }
+ if(which<0||which>=4)return;
+ if(!button_textures[which]){
+  SDL_Surface *surface=SDL_CreateRGBSurfaceWithFormatFrom(
+   (void *)button_pixels[which],
+   SG_BUTTON_ICON_WIDTH,SG_BUTTON_ICON_HEIGHT,32,
+   SG_BUTTON_ICON_WIDTH*4,SDL_PIXELFORMAT_RGBA32
+  );
+  if(!surface)return;
+  button_textures[which]=SDL_CreateTextureFromSurface(r,surface);
+  SDL_FreeSurface(surface);
+  if(!button_textures[which])return;
+  SDL_SetTextureBlendMode(button_textures[which],SDL_BLENDMODE_BLEND);
  }
+ SDL_Rect target={x,y,size,size};
+ SDL_RenderCopy(r,button_textures[which],NULL,&target);
 }
 static void button_label(SDL_Renderer *r,int x,int y,int size,int which,int scale,const char *text){
  button_icon(r,x,y,size,which);
