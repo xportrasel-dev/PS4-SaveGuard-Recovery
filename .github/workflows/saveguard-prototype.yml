@@ -11,15 +11,15 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
 
-    - name: Checkout SaveGuard
-      uses: actions/checkout@v4
-      with:
-        path: saveguard
-
     - name: Checkout upstream build scaffold
       uses: actions/checkout@v4
       with:
         repository: bucanero/apollo-ps4
+
+    - name: Checkout SaveGuard
+      uses: actions/checkout@v4
+      with:
+        path: saveguard
 
     - name: Set env vars
       run: |
