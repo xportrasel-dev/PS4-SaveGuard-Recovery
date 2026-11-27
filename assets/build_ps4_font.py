@@ -27,10 +27,10 @@ def c_array(name, c_type, values, per_line):
     for start in range(0, len(values), per_line):
         out.append(" " + ",".join(str(v) for v in values[start:start + per_line]) + ",")
     out.append("};")
-    return "\\n".join(out)
+    return "\n".join(out)
 
 lines = [
-    "/* DejaVu Sans Bold glyph atlas; generated at build time. */
+    "/* DejaVu Sans Bold glyph atlas; generated at build time. */",
     "#ifndef SAVEGUARD_UI_FONT_GENERATED_H",
     "#define SAVEGUARD_UI_FONT_GENERATED_H",
     "#define SG_FONT_ATLAS_WIDTH %d" % atlas.width,
@@ -44,4 +44,4 @@ lines = [
     "#endif",
 ]
 output.parent.mkdir(parents=True, exist_ok=True)
-output.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+output.write_text("\n".join(lines) + "\n", encoding="utf-8")
