@@ -2,6 +2,11 @@ name: SaveGuard prototype PKG
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.github/workflows/saveguard-prototype.yml'
 
 permissions:
   contents: read
