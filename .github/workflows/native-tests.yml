@@ -19,3 +19,12 @@ jobs:
           ./export_test
       - name: Compile discovery
         run: cc -Wall -Wextra -Werror src/discovery.c -o discovery
+      - name: Install native development dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev libmbedtls-dev
+      - name: Compile and link full dashboard
+        run: |
+          cc -std=gnu11 -Wall -Wextra $(sdl2-config --cflags) src/{ps4_main,export,snapshot,catalog,history,integrity,verify,restore,batch,schedule,settings,trash,pin,pin_guard,pin_store,usb_guard}.c $(sdl2-config --libs) -lmbedcrypto -o saveguard-native
+      - name: Test PIN authorization
+        run: |
+          cc -Wall -Wextra -Werror src/pin.c src/pin_guard.c tests/pin_test.c -lmbedcrypto -o pin_test
+          ./pin_test
