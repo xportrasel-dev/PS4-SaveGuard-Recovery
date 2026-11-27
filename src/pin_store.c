@@ -33,12 +33,12 @@ int sg_pin_store_new(unsigned usb,const struct sg_pin_record *r){
  if(rc){unlink(p);return -1;}return 0;
 }
 int sg_pin_load(unsigned usb,struct sg_pin_record *r){
- char p[128],legacy[128];unsigned char b[52];struct stat st;
+ char p[128],legacy[128];unsigned char b[52];struct stat st;int using_legacy=0;
  if(!r||path_for(usb,p))return -1;
  int fd=open(p,O_RDONLY|O_NOFOLLOW);
  if(fd<0&&errno==ENOENT){
   if(legacy_path_for(usb,legacy))return -1;
-  fd=open(legacy,O_RDONLY|O_NOFOLLOW);
+  fd=open(legacy,O_RDONLY|O_NOFOLLOW);using_legacy=1;
  }
  if(fd<0)return -1;
  if(fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_size!=sizeof b){close(fd);return -1;}
@@ -46,6 +46,14 @@ int sg_pin_load(unsigned usb,struct sg_pin_record *r){
  while(off<sizeof b){ssize_t n=read(fd,b+off,sizeof b-off);if(n<0&&errno==EINTR)continue;if(n<=0)break;off+=(size_t)n;}
  close(fd);
  if(off!=sizeof b||memcmp(b,"SGP1",4))return -1;
+ if(using_legacy){
+  int out=open(p,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+  if(out<0)return -1;
+  size_t written=0;
+  while(written<sizeof b){ssize_t n=write(out,b+written,sizeof b-written);if(n<0&&errno==EINTR)continue;if(n<=0)break;written+=(size_t)n;}
+  int rc=written!=sizeof b||fsync(out);if(close(out))rc=1;
+  if(rc){unlink(p);return -1;}
+ }
  memcpy(r->salt,b+4,16);memcpy(r->hash,b+20,32);return 0;
 }
 
