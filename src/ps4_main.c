@@ -6,6 +6,9 @@
 #include <stdint.h>
 #include <time.h>
 #include <stdlib.h>
+#ifdef __PS4__
+#include <orbis/SaveData.h>
+#endif
 struct sg_db_summary {unsigned rows,present,missing,unknown;};
 int sg_db_reconcile(uint32_t,struct sg_db_summary *);
 static struct sg_db_summary db_summary;
@@ -31,6 +34,27 @@ static void pair_report(uint32_t user,const char *title,const char *slot,int sta
 }
 int sg_snapshot(const char *,unsigned);
 int sg_usb_ready(unsigned);
+static int sg_delete_selected_save(void){
+ if(!pair_count||pair_index>=pair_count||pairs[pair_index].state!=1||sg_usb_ready(usb))return -1;
+ char path[160];struct stat st;
+ int n=snprintf(path,sizeof path,"/user/home/%08x/savedata/%s",(unsigned)pairs[pair_index].user,pairs[pair_index].title);
+ if(n<0||(size_t)n>=sizeof path||lstat(path,&st)||!S_ISDIR(st.st_mode))return -1;
+ /* Keep a verified USB snapshot of this user's game saves before permanent deletion. */
+ if(sg_snapshot(path,usb))return -1;
+#ifdef __PS4__
+ OrbisSaveDataTitleId title_id={0};
+ OrbisSaveDataDirName dir_name={0};
+ OrbisSaveDataDelete request={0};
+ if(snprintf(title_id.data,sizeof title_id.data,"%.9s",pairs[pair_index].title)<0||strlen(pairs[pair_index].slot)>=sizeof dir_name.data)return -1;
+ snprintf(dir_name.data,sizeof dir_name.data,"%s",pairs[pair_index].slot);
+ request.userId=(int32_t)pairs[pair_index].user;
+ request.titleId=&title_id;
+ request.dirName=&dir_name;
+ return sceSaveDataDelete(&request);
+#else
+ return -1;
+#endif
+}
 static void rect(SDL_Renderer *r,int x,int y,int w,int h,int a,int b,int c){
  SDL_Rect q={x,y,w,h};SDL_SetRenderDrawColor(r,a,b,c,255);SDL_RenderFillRect(r,&q);
 }
@@ -71,6 +95,7 @@ static void clear_first(void){volatile char *p=pin_first;for(unsigned i=0;i<13;i
 int sg_trash_move(unsigned,const char *,int);
 int sg_guard_consume(struct sg_pin_guard *,uint64_t);
 static int pending_trash;
+static int pending_delete;
 static int trash_view;
 int sg_trash_history(unsigned,sg_history_cb,void *);
 static void clear_pin(void){volatile char *p=pin_input;for(unsigned i=0;i<13;i++)p[i]=0;pin_len=pin_digit=0;}
@@ -139,7 +164,7 @@ int main(void){
  if(b==SDL_CONTROLLER_BUTTON_DPAD_DOWN)pin_digit=(pin_digit+9)%10;
  if(b==SDL_CONTROLLER_BUTTON_A&&pin_len<12){pin_input[pin_len++]=(char)('0'+pin_digit);pin_input[pin_len]=0;}
  if(b==SDL_CONTROLLER_BUTTON_DPAD_LEFT&&pin_len)pin_input[--pin_len]=0;
- if(b==SDL_CONTROLLER_BUTTON_B){clear_pin();clear_first();pin_mode=0;pending_trash=0;changing_pin=0;}
+ if(b==SDL_CONTROLLER_BUTTON_B){clear_pin();clear_first();pin_mode=0;pending_trash=0;pending_delete=0;changing_pin=0;}
  if(b==SDL_CONTROLLER_BUTTON_Y&&pin_len>=6){
  if(pin_mode==1){memcpy(pin_first,pin_input,sizeof pin_first);clear_pin();pin_mode=3;continue;}
  int rc;
@@ -157,8 +182,11 @@ int main(void){
  const char *name=backup_count?strrchr(backups[backup_index].path,'/'):NULL;
  rc=sg_guard_consume(&guard,now_seconds())||!name||sg_trash_move(usb,name+1,pending_trash==2);
  if(!rc){backup_count=backup_index=0;trash_view=0;}
+ }else if(!rc&&pending_delete){
+ rc=sg_guard_consume(&guard,now_seconds())||sg_delete_selected_save();
+ if(!rc){pair_count=pair_index=0;}
  }
- pending_trash=0;changing_pin=0;status=rc?2:1;clear_pin();pin_mode=0;
+ pending_trash=0;pending_delete=0;changing_pin=0;status=rc?2:1;clear_pin();pin_mode=0;
  }
  continue;
  }
@@ -168,8 +196,8 @@ int main(void){
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_X&&(selected==3||selected==9||selected==10)&&backup_count){
  backup_index=(backup_index+1)%backup_count;confirm=0;continue;
  }
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)selected=(selected+1)%13;
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP)selected=(selected+12)%13;
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)selected=(selected+1)%14;
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP)selected=(selected+13)%14;
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_B){if(confirm)confirm=0;else running=0;}
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_LEFT){usb=(usb+7)%8;confirm=0;backup_count=backup_index=0;trash_view=0;}
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_RIGHT){usb=(usb+1)%8;confirm=0;backup_count=backup_index=0;trash_view=0;}
@@ -204,6 +232,12 @@ int main(void){
  status=db_rc==0&&orphan_rc==0&&pair_rc==0?1:2;
  confirm=0;
  }
+ else if(selected==12){
+ if(!pair_count||pair_index>=pair_count||pairs[pair_index].state!=1||sg_pin_load(usb,&pin_record)){
+ status=2;confirm=0;
+ }else if(confirm){clear_pin();pending_delete=1;pin_mode=2;confirm=0;}
+ else confirm=1;
+ }
  else running=0;
  }
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP||e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)confirm=0;
@@ -216,18 +250,18 @@ int main(void){
  }
  SDL_SetRenderDrawColor(r,12,20,36,255);SDL_RenderClear(r);
  rect(r,40,40,1200,85,26,47,75);
- for(int i=0;i<13;i++)rect(r,40,150+i*40,350,36,i==selected?40:25,i==selected?110:40,i==selected?185:65);
+ for(int i=0;i<14;i++)rect(r,40,150+i*40,350,36,i==selected?40:25,i==selected?110:40,i==selected?185:65);
  rect(r,420,150,820,480,20,34,54);
  rect(r,450,180,760,24,status==2?190:40,status==1?170:65,80);
  if(confirm)rect(r,450,230,760,45,190,120,30);
  for(unsigned i=0;i<8;i++)rect(r,450+i*90,300,70,35,i==usb?40:30,i==usb?150:60,100);
  label(r,65,65,5,"PS4 SAVEGUARD");
- const char *names[]={"SCAN FILES","USB BACKUP","NEXT GAME","HISTORY","VERIFY BACKUP","STAGE RECOVERY","BACKUP ALL","AUTO BACKUP","PIN SECURITY","TRASH BACKUP","RESTORE TRASH","SCAN DATABASE","EXIT"};
- for(int i=0;i<13;i++)label(r,65,156+i*40,3,names[i]);
+ const char *names[]={"SCAN FILES","USB BACKUP","NEXT GAME","HISTORY","VERIFY BACKUP","STAGE RECOVERY","BACKUP ALL","AUTO BACKUP","PIN SECURITY","TRASH BACKUP","RESTORE TRASH","SCAN SAVES","DELETE SAVE PIN","EXIT"};
+ for(int i=0;i<14;i++)label(r,65,156+i*40,3,names[i]);
  char info[100];snprintf(info,sizeof info,"FILES %u   ERRORS %u",files,errors);
  label(r,450,345,3,info);
  label(r,450,390,3,status==2?"ERROR OR PARTIAL":status==1?"OPERATION COMPLETE":"READY");
- label(r,450,440,3,confirm?(selected==7?"PRESS X TO ENABLE AUTO":selected==10?"PRESS X TO RESTORE BACKUP":selected==9?"PRESS X TO MOVE TO TRASH":"PRESS X AGAIN TO COPY"):"X SELECT   O BACK");
+ label(r,450,440,3,confirm?(selected==7?"PRESS A AGAIN TO ENABLE":selected==10?"PRESS A TO RESTORE BACKUP":selected==9?"PRESS A TO MOVE TO TRASH":selected==12?"A AGAIN THEN ENTER PIN":"PRESS A AGAIN TO COPY"):"A SELECT   B BACK");
  label(r,450,485,2,"LEFT RIGHT SELECT USB");
  label(r,450,510,2,sg_usb_ready(usb)==0?"USB MOUNT DETECTED":"USB NOT READY");
  label(r,450,540,2,"EXISTING FILES ONLY");
@@ -242,6 +276,19 @@ int main(void){
  if(selected==4){snprintf(info,sizeof info,"VERIFIED FILES %u",verified_files);label(r,450,655,2,info);}
  if(selected==6){snprintf(info,sizeof info,"TOTAL %u OK %u FAILED %u",batch.attempted,batch.succeeded,batch.failed);label(r,450,610,2,info);}
  if(selected==7){label(r,450,610,2,schedule.enabled?"AUTO BACKUP ON":"AUTO BACKUP OFF");snprintf(info,sizeof info,"INTERVAL 24 HOURS USB %u",schedule.enabled?schedule.usb:usb);label(r,450,650,2,info);}
+ if(selected==12){
+ rect(r,440,530,780,140,20,34,54);
+ if(pair_count){
+ snprintf(info,sizeof info,"USER %08X TITLE %s",(unsigned)pairs[pair_index].user,pairs[pair_index].title);label(r,450,542,2,info);
+ snprintf(info,sizeof info,"SLOT %.28s",pairs[pair_index].slot);label(r,450,565,2,info);
+ label(r,450,588,2,pairs[pair_index].state==1?"CANDIDATE COMPLETE":"ONLY COMPLETE PAIRS ALLOWED");
+ label(r,450,611,2,"PIN REQUIRED FOR EACH DELETE");
+ label(r,450,638,2,"USB BACKUP MUST SUCCEED FIRST");
+ }else{
+ label(r,450,565,2,"SCAN SAVES FIRST");
+ label(r,450,588,2,"NO DELETE WITHOUT PIN");
+ }
+ }
  if(selected==11){
  rect(r,440,530,780,140,20,34,54);
  snprintf(info,sizeof info,"PAIR C %u I %u U %u A %u",pair_summary.complete,pair_summary.incomplete,pair_summary.unknown,pair_summary.ambiguous);label(r,450,540,2,info);
