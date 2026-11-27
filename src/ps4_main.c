@@ -11,6 +11,11 @@ int sg_db_reconcile(uint32_t,struct sg_db_summary *);
 static struct sg_db_summary db_summary;
 int sg_db_scan_all(struct sg_db_summary *,unsigned *,unsigned *);
 static unsigned db_users,db_failed;
+typedef void (*sg_orphan_cb)(uint32_t,const char *,void *);
+int sg_orphan_scan_all(sg_orphan_cb,void *,unsigned *,unsigned *);
+static unsigned orphan_found,orphan_failed;
+static char orphan_last[10];
+static void orphan_report(uint32_t u,const char *t,void *ctx){(void)u;(void)ctx;snprintf(orphan_last,sizeof orphan_last,"%.9s",t);}
 int sg_snapshot(const char *,unsigned);
 int sg_usb_ready(unsigned);
 static void rect(SDL_Renderer *r,int x,int y,int w,int h,int a,int b,int c){
@@ -175,7 +180,10 @@ int main(void){
  }
  else if(selected==11){
  memset(&db_summary,0,sizeof db_summary);
- status=sg_db_scan_all(&db_summary,&db_users,&db_failed)==0?1:2;
+ int db_rc=sg_db_scan_all(&db_summary,&db_users,&db_failed);
+ orphan_last[0]=0;
+ int orphan_rc=sg_orphan_scan_all(orphan_report,NULL,&orphan_found,&orphan_failed);
+ status=db_rc==0&&orphan_rc==0?1:2;
  confirm=0;
  }
  else running=0;
@@ -217,6 +225,8 @@ int main(void){
  if(selected==6){snprintf(info,sizeof info,"TOTAL %u OK %u FAILED %u",batch.attempted,batch.succeeded,batch.failed);label(r,450,610,2,info);}
  if(selected==7){label(r,450,610,2,schedule.enabled?"AUTO BACKUP ON":"AUTO BACKUP OFF");snprintf(info,sizeof info,"INTERVAL 24 HOURS USB %u",schedule.enabled?schedule.usb:usb);label(r,450,650,2,info);}
  if(selected==11){
+ rect(r,440,530,780,140,20,34,54);
+ snprintf(info,sizeof info,"ORPHAN DIRS %u FAILED %u %s",orphan_found,orphan_failed,orphan_last);label(r,450,550,2,info);
  snprintf(info,sizeof info,"DB USERS %u FAILED %u",db_users,db_failed);label(r,450,585,2,info);
  snprintf(info,sizeof info,"DB ROWS %u TITLE DIR FOUND %u",db_summary.rows,db_summary.present);label(r,450,610,2,info);
  snprintf(info,sizeof info,"MISSING DIR %u UNKNOWN %u",db_summary.missing,db_summary.unknown);label(r,450,650,2,info);
