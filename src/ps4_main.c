@@ -28,6 +28,8 @@ int sg_schedule_configure(struct sg_schedule *,unsigned,unsigned,uint64_t,uint64
 int sg_schedule_due(struct sg_schedule *,uint64_t);
 void sg_schedule_finish(struct sg_schedule *,uint64_t,int);
 static struct sg_schedule schedule;
+int sg_settings_save(const struct sg_schedule *);
+int sg_settings_load(struct sg_schedule *,unsigned,uint64_t);
 static uint64_t now_seconds(void){time_t t=time(NULL);return t<0?0:(uint64_t)t;}
 static void add_backup(const char *p,const char *u,const char *t,long long stamp,void *ctx){
  (void)u;(void)ctx;
@@ -79,6 +81,7 @@ int main(void){
  SDL_GameController *pad=NULL;
  for(int i=0;i<SDL_NumJoysticks();i++)if(SDL_IsGameController(i)){pad=SDL_GameControllerOpen(i);if(pad)break;}
  int running=1,selected=0,status=0,confirm=0; unsigned usb=0;
+ sg_settings_load(&schedule,usb,now_seconds());
  while(running){
  SDL_Event e;
  while(SDL_PollEvent(&e)){
@@ -97,7 +100,7 @@ int main(void){
  else if(selected==4){verified_files=0;status=backup_count&&!sg_verify_snapshot(backups[backup_index].path,&verified_files)?1:2;}
  else if(selected==5){if(!backup_count){status=2;confirm=0;}else if(confirm){status=sg_stage_restore(backups[backup_index].path)?2:1;confirm=0;}else confirm=1;}
  else if(selected==6){if(confirm){status=sg_batch_backup(usb,&batch)?2:1;confirm=0;backup_count=backup_index=0;}else confirm=1;}
- else if(selected==7){if(schedule.enabled){schedule.enabled=0;confirm=0;status=0;}else if(confirm){status=sg_schedule_configure(&schedule,1,usb,86400,now_seconds())?2:1;confirm=0;}else confirm=1;}
+ else if(selected==7){if(schedule.enabled){schedule.enabled=0;confirm=0;status=sg_settings_save(&schedule)?2:1;}else if(confirm){status=sg_schedule_configure(&schedule,1,usb,86400,now_seconds())?2:1;if(status==1&&sg_settings_save(&schedule)){schedule.enabled=0;status=2;}confirm=0;}else confirm=1;}
  else running=0;
  }
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP||e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)confirm=0;
