@@ -22,6 +22,17 @@ static void inventory(const char *p,unsigned depth){
  }
  closedir(d);
 }
+/* Five-column bitmap font, uppercase ASCII and digits. */
+static const unsigned char glyph[36][5]={
+{126,9,9,9,126},{127,73,73,73,54},{62,65,65,65,34},{127,65,65,34,28},{127,73,73,73,65},{127,9,9,9,1},{62,65,73,73,122},{127,8,8,8,127},{65,65,127,65,65},{32,64,65,63,1},{127,8,20,34,65},{127,64,64,64,64},{127,2,12,2,127},{127,4,8,16,127},{62,65,65,65,62},{127,9,9,9,6},{62,65,81,33,94},{127,9,25,41,70},{38,73,73,73,50},{1,1,127,1,1},{63,64,64,64,63},{31,32,64,32,31},{63,64,56,64,63},{99,20,8,20,99},{7,8,112,8,7},{97,81,73,69,67},
+{62,81,73,69,62},{0,66,127,64,0},{98,81,73,73,70},{34,65,73,73,54},{24,20,18,127,16},{39,69,69,69,57},{62,73,73,73,50},{1,113,9,5,3},{54,73,73,73,54},{38,73,73,73,62}};
+static void label(SDL_Renderer *r,int x,int y,int scale,const char *s){
+ for(;*s;s++,x+=6*scale){
+ int k=*s>='A'&&*s<='Z'?*s-'A':*s>='0'&&*s<='9'?26+*s-'0':-1;
+ if(k<0)continue;
+ for(int i=0;i<5;i++)for(int j=0;j<7;j++)if(glyph[k][i]&(1<<j))rect(r,x+i*scale,y+j*scale,scale,scale,230,240,250);
+ }
+}
 /* Prototype visual dashboard. No internal disk writes or automatic backup. */
 int main(void){
  if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER))return 1;
@@ -58,6 +69,16 @@ int main(void){
  rect(r,450,180,760,24,status==2?190:40,status==1?170:65,80);
  if(confirm)rect(r,450,230,760,45,190,120,30);
  for(unsigned i=0;i<8;i++)rect(r,450+i*90,300,70,35,i==usb?40:30,i==usb?150:60,100);
+ label(r,65,65,5,"PS4 SAVEGUARD");
+ const char *names[]={"SCAN FILES","USB BACKUP","CLEAR STATUS","EXIT"};
+ for(int i=0;i<4;i++)label(r,65,188+i*125,3,names[i]);
+ char info[100];snprintf(info,sizeof info,"FILES %u   ERRORS %u",files,errors);
+ label(r,450,345,3,info);
+ label(r,450,390,3,status==2?"ERROR OR PARTIAL":status==1?"OPERATION COMPLETE":"READY");
+ label(r,450,440,3,confirm?"PRESS X AGAIN TO COPY":"X SELECT   O BACK");
+ label(r,450,485,2,"LEFT RIGHT SELECT USB");
+ label(r,450,530,2,"EXISTING FILES ONLY");
+ for(unsigned i=0;i<8;i++){char num[2]={(char)('0'+i),0};label(r,475+i*90,308,2,num);}
  SDL_RenderPresent(r);SDL_Delay(16);
  }
  if(pad)SDL_GameControllerClose(pad);
