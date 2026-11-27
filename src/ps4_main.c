@@ -42,6 +42,12 @@ static int sg_delete_selected_save(unsigned usb){
  /* Keep a verified USB snapshot of this user's game saves before permanent deletion. */
  if(sg_snapshot(path,usb))return -1;
 #ifdef __PS4__
+ static int save_api_initialized;
+ if(!save_api_initialized){
+  int init_rc=sceSaveDataInitialize3(0);
+  if(init_rc<0)return init_rc;
+  save_api_initialized=1;
+ }
  OrbisSaveDataTitleId title_id={0};
  OrbisSaveDataDirName dir_name={0};
  OrbisSaveDataDelete request={0};
