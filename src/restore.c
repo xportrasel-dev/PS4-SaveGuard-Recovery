@@ -6,6 +6,7 @@ int sg_usb_ready(unsigned);
 #include <errno.h>
 #include <time.h>
 int sg_verify_snapshot(const char *,unsigned *);
+int sg_verify_staged(const char *,unsigned *);
 int sg_export(const char *,const char *);
 static int stage_tree(const char *src,const char *dst,unsigned depth){
  if(!depth)return -1;
@@ -33,11 +34,14 @@ int sg_stage_restore(const char *root){
  snprintf(src,sizeof src,"%s/data",root);
  snprintf(out,sizeof out,"%s/data",dst);
  if(lstat(src,&st)||!S_ISDIR(st.st_mode)||mkdir(out,0700)||stage_tree(src,out,16))return -1;
- const char *names[]={"manifest.txt","checksums.sha256",".complete"};
- for(unsigned i=0;i<3;i++){
+ const char *names[]={"manifest.txt","checksums.sha256"};
+ for(unsigned i=0;i<2;i++){
  snprintf(src,sizeof src,"%s/%s",root,names[i]);
  snprintf(out,sizeof out,"%s/%s",dst,names[i]);
  if(sg_export(src,out))return -1;
  }
- return sg_verify_snapshot(dst,&checked);
+ if(sg_verify_staged(dst,&checked)||sg_usb_ready((unsigned)(root[8]-'0')))return -1;
+ snprintf(src,sizeof src,"%s/.complete",root);
+ snprintf(out,sizeof out,"%s/.complete",dst);
+ return sg_export(src,out);
 }
