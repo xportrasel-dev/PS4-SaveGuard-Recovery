@@ -1,10 +1,11 @@
+int sg_usb_ready(unsigned);
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <errno.h>
 int sg_verify_snapshot(const char *,unsigned *);
 int sg_trash_move(unsigned usb,const char *name,int restore){
- if(usb>7||!name||strlen(name)>100)return -1;
+ if(sg_usb_ready(usb)||!name||strlen(name)>100)return -1;
  char u[9]={0},t[10]={0};long long stamp;int n=0;
  if(sscanf(name,"SaveGuard-%8[0123456789abcdefABCDEF]-%9[CUSA0123456789]-%lld%n",u,t,&stamp,&n)!=3||name[n]||strlen(u)!=8||strlen(t)!=9||strncmp(t,"CUSA",4))return -1;
  for(int i=4;i<9;i++)if(t[i]<'0'||t[i]>'9')return -1;
