@@ -16,6 +16,19 @@ int sg_orphan_scan_all(sg_orphan_cb,void *,unsigned *,unsigned *);
 static unsigned orphan_found,orphan_failed;
 static char orphan_last[10];
 static void orphan_report(uint32_t u,const char *t,void *ctx){(void)u;(void)ctx;snprintf(orphan_last,sizeof orphan_last,"%.9s",t);}
+struct sg_pair_summary {unsigned complete,incomplete,unknown,ambiguous,total,overflow;};
+int sg_pair_scan_all(void (*)(uint32_t,const char *,const char *,int,void *),void *,struct sg_pair_summary *);
+static struct sg_pair_summary pair_summary;
+static struct {uint32_t user;char title[10],slot[256];int state;} pairs[512];
+static unsigned pair_count,pair_index;
+static void pair_report(uint32_t user,const char *title,const char *slot,int state,void *ctx){
+ (void)ctx;
+ if(pair_count>=512){pair_summary.overflow++;return;}
+ pairs[pair_count].user=user;
+ snprintf(pairs[pair_count].title,sizeof pairs[pair_count].title,"%.9s",title);
+ snprintf(pairs[pair_count].slot,sizeof pairs[pair_count].slot,"%.255s",slot);
+ pairs[pair_count].state=state;pair_count++;
+}
 int sg_snapshot(const char *,unsigned);
 int sg_usb_ready(unsigned);
 static void rect(SDL_Renderer *r,int x,int y,int w,int h,int a,int b,int c){
@@ -149,6 +162,9 @@ int main(void){
  }
  continue;
  }
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_X&&selected==11&&pair_count){
+ pair_index=(pair_index+1)%pair_count;confirm=0;continue;
+}
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_X&&(selected==3||selected==9||selected==10)&&backup_count){
  backup_index=(backup_index+1)%backup_count;confirm=0;continue;
  }
@@ -183,7 +199,9 @@ int main(void){
  int db_rc=sg_db_scan_all(&db_summary,&db_users,&db_failed);
  orphan_last[0]=0;
  int orphan_rc=sg_orphan_scan_all(orphan_report,NULL,&orphan_found,&orphan_failed);
- status=db_rc==0&&orphan_rc==0?1:2;
+ pair_count=pair_index=0;
+ int pair_rc=sg_pair_scan_all(pair_report,NULL,&pair_summary);
+ status=db_rc==0&&orphan_rc==0&&pair_rc==0?1:2;
  confirm=0;
  }
  else running=0;
@@ -226,10 +244,14 @@ int main(void){
  if(selected==7){label(r,450,610,2,schedule.enabled?"AUTO BACKUP ON":"AUTO BACKUP OFF");snprintf(info,sizeof info,"INTERVAL 24 HOURS USB %u",schedule.enabled?schedule.usb:usb);label(r,450,650,2,info);}
  if(selected==11){
  rect(r,440,530,780,140,20,34,54);
- snprintf(info,sizeof info,"ORPHAN DIRS %u FAILED %u %s",orphan_found,orphan_failed,orphan_last);label(r,450,550,2,info);
- snprintf(info,sizeof info,"DB USERS %u FAILED %u",db_users,db_failed);label(r,450,585,2,info);
- snprintf(info,sizeof info,"DB ROWS %u TITLE DIR FOUND %u",db_summary.rows,db_summary.present);label(r,450,610,2,info);
- snprintf(info,sizeof info,"MISSING DIR %u UNKNOWN %u",db_summary.missing,db_summary.unknown);label(r,450,650,2,info);
+ snprintf(info,sizeof info,"PAIR C %u I %u U %u A %u",pair_summary.complete,pair_summary.incomplete,pair_summary.unknown,pair_summary.ambiguous);label(r,450,540,2,info);
+ if(pair_count){
+ snprintf(info,sizeof info,"PAIR %u/%u USER %08X TITLE %s",pair_index+1,pair_count,(unsigned)pairs[pair_index].user,pairs[pair_index].title);label(r,450,565,2,info);
+ snprintf(info,sizeof info,"SLOT %.30s",pairs[pair_index].slot);label(r,450,588,2,info);
+ const char *pair_state=pairs[pair_index].state==1?"COMPLETE":pairs[pair_index].state==0?"INCOMPLETE":pairs[pair_index].state==2?"AMBIGUOUS":"UNKNOWN";
+ snprintf(info,sizeof info,"STATE %s   X NEXT PAIR",pair_state);label(r,450,611,2,info);
+ }else label(r,450,565,2,"NO PAIRS FOUND   X NEXT PAIR");
+ snprintf(info,sizeof info,"ORPHAN %u FAIL %u DB %u USERS %u",orphan_found,orphan_failed,db_summary.rows,db_users);label(r,450,638,2,info);
  }
  if(pin_mode){
  rect(r,420,150,820,520,20,34,54);
