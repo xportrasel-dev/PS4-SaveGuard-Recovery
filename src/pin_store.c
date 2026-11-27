@@ -1,3 +1,4 @@
+int sg_usb_ready(unsigned);
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -6,7 +7,7 @@
 #include <errno.h>
 struct sg_pin_record {unsigned char salt[16],hash[32];};
 static int path_for(unsigned usb,char p[128]){
- if(usb>7)return -1;
+ if(sg_usb_ready(usb))return -1;
  char root[64];struct stat st;
  snprintf(root,sizeof root,"/mnt/usb%u",usb);
  if(lstat(root,&st)||!S_ISDIR(st.st_mode))return -1;
