@@ -38,12 +38,12 @@ static int count_tree(const char *path,unsigned depth,unsigned *count){
  }
  closedir(d);return rc;
 }
-int sg_verify_snapshot(const char *root,unsigned *checked){
+static int verify_snapshot(const char *root,unsigned *checked,int complete){
  char path[8192],line[4200];struct stat st;unsigned count=0;
  if(checked)*checked=0;
  if(!root||strlen(root)>4000||lstat(root,&st)||!S_ISDIR(st.st_mode))return -1;
  snprintf(path,sizeof path,"%s/.complete",root);
- if(lstat(path,&st)||!S_ISREG(st.st_mode))return -1;
+ if(complete&&(lstat(path,&st)||!S_ISREG(st.st_mode)))return -1;
  snprintf(path,sizeof path,"%s/checksums.sha256",root);
  if(lstat(path,&st)||!S_ISREG(st.st_mode))return -1;
  FILE *f=fopen(path,"r");if(!f)return -1;
@@ -69,3 +69,6 @@ int sg_verify_snapshot(const char *root,unsigned *checked){
  if(checked)*checked=count;
  return rc;
 }
+
+int sg_verify_snapshot(const char *root,unsigned *checked){return verify_snapshot(root,checked,1);}
+int sg_verify_staged(const char *root,unsigned *checked){return verify_snapshot(root,checked,0);}
