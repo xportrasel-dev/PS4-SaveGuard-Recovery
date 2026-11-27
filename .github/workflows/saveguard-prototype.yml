@@ -246,10 +246,13 @@ jobs:
     - name: Install icon asset tooling
       run: |
         sudo apt-get update
-        sudo apt-get install -y inkscape python3-pil
+        sudo apt-get install -y inkscape python3-pil fonts-dejavu-core
 
     - name: Generate smooth PlayStation button icons
       run: python3 saveguard/assets/build_ps4_button_icons.py saveguard/assets/ps4-gamepad-icons.svg source/button_icons_generated.h
+
+    - name: Generate smooth dashboard font
+      run: python3 saveguard/assets/build_ps4_font.py /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf source/ui_font_generated.h
 
     - name: Build prototype
       run: make
