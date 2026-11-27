@@ -8,6 +8,18 @@ static void rect(SDL_Renderer *r,int x,int y,int w,int h,int a,int b,int c){
  SDL_Rect q={x,y,w,h};SDL_SetRenderDrawColor(r,a,b,c,255);SDL_RenderFillRect(r,&q);
 }
 static unsigned files,errors;
+typedef void (*sg_catalog_cb)(const char *,const char *,const char *,void *);
+int sg_catalog(sg_catalog_cb,void *);
+static struct {char user[9],title[10],path[256];} games[512];
+static unsigned game_count,game_index;
+static void add_game(const char *u,const char *t,const char *p,void *ctx){
+ (void)ctx;
+ if(game_count>=512){errors++;return;}
+ snprintf(games[game_count].user,9,"%s",u);
+ snprintf(games[game_count].title,10,"%s",t);
+ snprintf(games[game_count].path,256,"%s",p);
+ game_count++;
+}
 static void inventory(const char *p,unsigned depth){
  if(!depth){errors++;return;}
  DIR *d=opendir(p);if(!d){errors++;return;}
@@ -54,9 +66,9 @@ int main(void){
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_LEFT){usb=(usb+7)%8;confirm=0;}
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_RIGHT){usb=(usb+1)%8;confirm=0;}
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_A){
- if(selected==0){files=errors=0;inventory("/user/home",12);status=errors?2:1;confirm=0;}
- else if(selected==1){if(confirm){status=sg_snapshot("/user/home",usb)?2:1;confirm=0;}else confirm=1;}
- else if(selected==2){status=0;confirm=0;}
+ if(selected==0){files=errors=0;game_count=game_index=0;if(sg_catalog(add_game,NULL)<0)errors++;for(unsigned i=0;i<game_count;i++)inventory(games[i].path,12);status=errors?2:1;confirm=0;}
+ else if(selected==1){if(!game_count){status=2;confirm=0;}else if(confirm){status=sg_snapshot(games[game_index].path,usb)?2:1;confirm=0;}else confirm=1;}
+ else if(selected==2){if(game_count)game_index=(game_index+1)%game_count;status=0;confirm=0;}
  else running=0;
  }
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP||e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)confirm=0;
@@ -70,7 +82,7 @@ int main(void){
  if(confirm)rect(r,450,230,760,45,190,120,30);
  for(unsigned i=0;i<8;i++)rect(r,450+i*90,300,70,35,i==usb?40:30,i==usb?150:60,100);
  label(r,65,65,5,"PS4 SAVEGUARD");
- const char *names[]={"SCAN FILES","USB BACKUP","CLEAR STATUS","EXIT"};
+ const char *names[]={"SCAN FILES","USB BACKUP","NEXT GAME","EXIT"};
  for(int i=0;i<4;i++)label(r,65,188+i*125,3,names[i]);
  char info[100];snprintf(info,sizeof info,"FILES %u   ERRORS %u",files,errors);
  label(r,450,345,3,info);
@@ -78,6 +90,7 @@ int main(void){
  label(r,450,440,3,confirm?"PRESS X AGAIN TO COPY":"X SELECT   O BACK");
  label(r,450,485,2,"LEFT RIGHT SELECT USB");
  label(r,450,530,2,"EXISTING FILES ONLY");
+ if(game_count){snprintf(info,sizeof info,"GAME %u OF %u  %s",game_index+1,game_count,games[game_index].title);label(r,450,570,3,info);}else label(r,450,570,3,"NO GAMES SCANNED");
  for(unsigned i=0;i<8;i++){char num[2]={(char)('0'+i),0};label(r,475+i*90,308,2,num);}
  SDL_RenderPresent(r);SDL_Delay(16);
  }
