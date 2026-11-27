@@ -3,6 +3,9 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+#include <stdlib.h>
+#define SG_MAX_ENTRIES 65536u
+static int cmp_paths(const void *a,const void *b){return strcmp(*(char *const *)a,*(char *const *)b);}
 int sg_verify_file(const char *,const unsigned char [32]);
 static int hex(char c){if(c>='0'&&c<='9')return c-'0';if(c>='a'&&c<='f')return c-'a'+10;return -1;}
 static int regular_path(const char *root,const char *rel,char out[8192]){
@@ -44,17 +47,22 @@ int sg_verify_snapshot(const char *root,unsigned *checked){
  snprintf(path,sizeof path,"%s/checksums.sha256",root);
  if(lstat(path,&st)||!S_ISREG(st.st_mode))return -1;
  FILE *f=fopen(path,"r");if(!f)return -1;
- int rc=0;
+ int rc=0;char **seen=NULL;unsigned capacity=0;
  while(fgets(line,sizeof line,f)){
  size_t len=strlen(line);unsigned char digest[32];
  if(len<68||line[len-1]!='\n'||line[64]!=' '||line[65]!=' '){rc=-1;break;}
  line[len-1]=0;
  for(int i=0;i<32;i++){int a=hex(line[2*i]),b=hex(line[2*i+1]);if(a<0||b<0){rc=-1;break;}digest[i]=(unsigned char)(16*a+b);}
  if(rc||regular_path(root,line+66,path)||sg_verify_file(path,digest)){rc=-1;break;}
- count++;
+ if(count>=SG_MAX_ENTRIES){rc=-1;break;}
+ if(count==capacity){unsigned next=capacity?capacity*2:64;char **tmp=realloc(seen,next*sizeof *seen);if(!tmp){rc=-1;break;}seen=tmp;capacity=next;}
+ seen[count]=strdup(line+66);if(!seen[count]){rc=-1;break;}count++;
  }
  if(ferror(f)||!count)rc=-1;
  fclose(f);
+ if(count>1){qsort(seen,count,sizeof *seen,cmp_paths);for(unsigned i=1;i<count;i++)if(!strcmp(seen[i-1],seen[i]))rc=-1;}
+ for(unsigned i=0;i<count;i++)free(seen[i]);
+ free(seen);
  unsigned actual=0;
  snprintf(path,sizeof path,"%s/data",root);
  if(lstat(path,&st)||!S_ISDIR(st.st_mode)||count_tree(path,16,&actual)||actual!=count)rc=-1;
