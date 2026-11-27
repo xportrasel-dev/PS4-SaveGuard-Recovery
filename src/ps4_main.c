@@ -3,6 +3,8 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <string.h>
+#include <stdint.h>
+#include <time.h>
 int sg_snapshot(const char *,unsigned);
 static void rect(SDL_Renderer *r,int x,int y,int w,int h,int a,int b,int c){
  SDL_Rect q={x,y,w,h};SDL_SetRenderDrawColor(r,a,b,c,255);SDL_RenderFillRect(r,&q);
@@ -21,6 +23,12 @@ int sg_stage_restore(const char *);
 struct sg_batch_result {unsigned usb,attempted,succeeded,failed;};
 int sg_batch_backup(unsigned,struct sg_batch_result *);
 static struct sg_batch_result batch;
+struct sg_schedule {uint64_t interval_seconds,next_due;unsigned enabled,usb,running;};
+int sg_schedule_configure(struct sg_schedule *,unsigned,unsigned,uint64_t,uint64_t);
+int sg_schedule_due(struct sg_schedule *,uint64_t);
+void sg_schedule_finish(struct sg_schedule *,uint64_t,int);
+static struct sg_schedule schedule;
+static uint64_t now_seconds(void){time_t t=time(NULL);return t<0?0:(uint64_t)t;}
 static void add_backup(const char *p,const char *u,const char *t,long long stamp,void *ctx){
  (void)u;(void)ctx;
  if(backup_count>=512)return;
@@ -76,8 +84,8 @@ int main(void){
  while(SDL_PollEvent(&e)){
  if(e.type==SDL_QUIT)running=0;
  if(e.type==SDL_CONTROLLERBUTTONDOWN){
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)selected=(selected+1)%8;
- if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP)selected=(selected+7)%8;
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)selected=(selected+1)%9;
+ if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP)selected=(selected+8)%9;
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_B){if(confirm)confirm=0;else running=0;}
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_LEFT){usb=(usb+7)%8;confirm=0;backup_count=backup_index=0;}
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_RIGHT){usb=(usb+1)%8;confirm=0;backup_count=backup_index=0;}
@@ -89,25 +97,31 @@ int main(void){
  else if(selected==4){verified_files=0;status=backup_count&&!sg_verify_snapshot(backups[backup_index].path,&verified_files)?1:2;}
  else if(selected==5){if(!backup_count){status=2;confirm=0;}else if(confirm){status=sg_stage_restore(backups[backup_index].path)?2:1;confirm=0;}else confirm=1;}
  else if(selected==6){if(confirm){status=sg_batch_backup(usb,&batch)?2:1;confirm=0;backup_count=backup_index=0;}else confirm=1;}
+ else if(selected==7){if(schedule.enabled){schedule.enabled=0;confirm=0;status=0;}else if(confirm){status=sg_schedule_configure(&schedule,1,usb,86400,now_seconds())?2:1;confirm=0;}else confirm=1;}
  else running=0;
  }
  if(e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP||e.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN)confirm=0;
  }
  }
+ if(running&&!confirm&&sg_schedule_due(&schedule,now_seconds())){
+ int rc=sg_batch_backup(schedule.usb,&batch);
+ sg_schedule_finish(&schedule,now_seconds(),rc==0);
+ status=rc?2:1;backup_count=backup_index=0;
+ }
  SDL_SetRenderDrawColor(r,12,20,36,255);SDL_RenderClear(r);
  rect(r,40,40,1200,85,26,47,75);
- for(int i=0;i<8;i++)rect(r,40,150+i*62,350,54,i==selected?40:25,i==selected?110:40,i==selected?185:65);
+ for(int i=0;i<9;i++)rect(r,40,150+i*55,350,48,i==selected?40:25,i==selected?110:40,i==selected?185:65);
  rect(r,420,150,820,480,20,34,54);
  rect(r,450,180,760,24,status==2?190:40,status==1?170:65,80);
  if(confirm)rect(r,450,230,760,45,190,120,30);
  for(unsigned i=0;i<8;i++)rect(r,450+i*90,300,70,35,i==usb?40:30,i==usb?150:60,100);
  label(r,65,65,5,"PS4 SAVEGUARD");
- const char *names[]={"SCAN FILES","USB BACKUP","NEXT GAME","HISTORY","VERIFY BACKUP","STAGE RECOVERY","BACKUP ALL","EXIT"};
- for(int i=0;i<8;i++)label(r,65,166+i*62,3,names[i]);
+ const char *names[]={"SCAN FILES","USB BACKUP","NEXT GAME","HISTORY","VERIFY BACKUP","STAGE RECOVERY","BACKUP ALL","AUTO BACKUP","EXIT"};
+ for(int i=0;i<9;i++)label(r,65,163+i*55,3,names[i]);
  char info[100];snprintf(info,sizeof info,"FILES %u   ERRORS %u",files,errors);
  label(r,450,345,3,info);
  label(r,450,390,3,status==2?"ERROR OR PARTIAL":status==1?"OPERATION COMPLETE":"READY");
- label(r,450,440,3,confirm?"PRESS X AGAIN TO COPY":"X SELECT   O BACK");
+ label(r,450,440,3,confirm?(selected==7?"PRESS X TO ENABLE AUTO":"PRESS X AGAIN TO COPY"):"X SELECT   O BACK");
  label(r,450,485,2,"LEFT RIGHT SELECT USB");
  label(r,450,530,2,"EXISTING FILES ONLY");
  if(game_count){snprintf(info,sizeof info,"GAME %u OF %u  %s",game_index+1,game_count,games[game_index].title);label(r,450,570,3,info);}else label(r,450,570,3,"NO GAMES SCANNED");
@@ -118,6 +132,7 @@ int main(void){
  }
  if(selected==4){snprintf(info,sizeof info,"VERIFIED FILES %u",verified_files);label(r,450,655,2,info);}
  if(selected==6){snprintf(info,sizeof info,"TOTAL %u OK %u FAILED %u",batch.attempted,batch.succeeded,batch.failed);label(r,450,610,2,info);}
+ if(selected==7){label(r,450,610,2,schedule.enabled?"AUTO BACKUP ON":"AUTO BACKUP OFF");snprintf(info,sizeof info,"INTERVAL 24 HOURS USB %u",schedule.enabled?schedule.usb:usb);label(r,450,650,2,info);}
  SDL_RenderPresent(r);SDL_Delay(16);
  }
  if(pad)SDL_GameControllerClose(pad);
