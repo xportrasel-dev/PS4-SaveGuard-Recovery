@@ -103,3 +103,24 @@ int sg_orphan_scan_all(sg_orphan_cb cb,void *ctx,unsigned *found,unsigned *faile
  }
  closedir(d);return users?rc:-1;
 }
+
+/* 0 absent, 1 nonempty regular file, -1 inaccessible or invalid. */
+static int pair_file(const char *p){
+ struct stat st;
+ if(lstat(p,&st))return errno==ENOENT?0:-1;
+ return S_ISREG(st.st_mode)&&st.st_size>0?1:-1;
+}
+/* 1 complete candidate, 0 missing component, -1 unknown, 2 ambiguous volume. */
+int sg_pair_check(const char *root,const char *slot){
+ char key[1024],volume[1024],legacy[1024];
+ if(!root||!slot||!*slot||strlen(slot)>255||strchr(slot,'/')||!strcmp(slot,".")||!strcmp(slot,".."))return -1;
+ int a=snprintf(key,sizeof key,"%s/%s.bin",root,slot);
+ int b=snprintf(volume,sizeof volume,"%s/sdimg_%s",root,slot);
+ int c=snprintf(legacy,sizeof legacy,"%s/%s",root,slot);
+ if(a<0||b<0||c<0||a>=(int)sizeof key||b>=(int)sizeof volume||c>=(int)sizeof legacy)return -1;
+ struct stat st;if(lstat(root,&st)||!S_ISDIR(st.st_mode))return -1;
+ a=pair_file(key);b=pair_file(volume);c=pair_file(legacy);
+ if(a<0||b<0||c<0)return -1;
+ if(b&&c)return 2;
+ return a&&(b||c)?1:0;
+}
