@@ -233,7 +233,7 @@ jobs:
     - name: Prepare standalone prototype
       run: |
         rm -f source/*.c source/*.cpp
-        cp saveguard/src/{ps4_main,export,snapshot}.c source/
+        cp saveguard/src/{ps4_main,export,snapshot,catalog}.c source/
         sed -i 's|#include <SDL2/SDL.h>|#include <SDL.h>|' source/ps4_main.c
         sed -i 's|^TITLE .*|TITLE := PS4 SaveGuard Prototype|;s|^VERSION .*|VERSION := 00.10|;s|^TITLE_ID .*|TITLE_ID := SGRD00001|;s|^CONTENT_ID .*|CONTENT_ID := IV0000-SGRD00001_00-SAVEGUARD0000001|' Makefile
         cp -R SDL-PS4/include/* "${OO_PS4_TOOLCHAIN}/include/"
