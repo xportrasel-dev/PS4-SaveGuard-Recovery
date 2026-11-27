@@ -12,7 +12,7 @@ Prototype for PS4 firmware 11.00 / GoldHEN. Current development work is on the `
 ## PIN-protected deletion
 
 - One PIN record is stored in the shared console path `/data/SaveGuard/SaveGuard-pin.bin`, so SaveGuard uses the same PIN for every local PS4 user.
-- Deletion through SaveGuard requires a complete scanned save pair, a PIN check for each deletion, and a successful checksummed snapshot of that user’s game-save directory to the selected USB drive before the system save-data delete request.
+- Deletion through SaveGuard requires a complete scanned save pair, a PIN check for each deletion, and a successful checksummed snapshot of that user's game-save directory to the selected USB drive before the system save-data delete request.
 - If the PIN is missing, the selected save is incomplete, the USB is unavailable, or snapshot verification fails, SaveGuard refuses the deletion.
 - This protection applies only to deletion initiated inside SaveGuard. It does not intercept the PS4 Settings menu or other applications; system-wide deletion blocking is not implemented.
 
@@ -22,4 +22,6 @@ Use PS4's supported cloud or USB saved-data backups when available. A full-conso
 
 ## Build status
 
-The PKG build and on-console behavior for the latest changes have not yet been confirmed. No recovery success has been verified for deleted saves.
+- The latest prototype PKG compiled successfully in GitHub Actions on November 27, 2026 (commit `db775a136b5e5c95aacb0aa0a5af8911ff22b8af`). The workflow artifact is `SaveGuard-prototype` (17.6 MB; SHA-256 `9cb67005c18bab0d816803c4bcda7588c66b5d81fbbb43dbb3d0aa466c89cabd`).
+- Native safety tests for the same commit passed in GitHub Actions.
+- The PKG has not been installed or exercised on a PS4. This is a prototype build, not a validated recovery release; on-console behavior, restore compatibility, and actual recovery success remain unverified.
