@@ -1,3 +1,4 @@
+int sg_usb_ready(unsigned);
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -26,6 +27,7 @@ int sg_stage_restore(const char *root){
  unsigned checked;char dst[4096],src[4096],out[4096];struct stat st;
  if(!root||strlen(root)>3800||sg_verify_snapshot(root,&checked))return -1;
  if(strncmp(root,"/mnt/usb",8)||root[8]<'0'||root[8]>'7'||strncmp(root+9,"/SaveGuard-",11)||strchr(root+10,'/'))return -1;
+ if(sg_usb_ready((unsigned)(root[8]-'0')))return -1;
  snprintf(dst,sizeof dst,"%s-recovery-%lld",root,(long long)time(NULL));
  if(mkdir(dst,0700))return -1;
  snprintf(src,sizeof src,"%s/data",root);
