@@ -27,7 +27,6 @@ The dashboard uses the colored PlayStation button glyphs from [flat-gamepad-icon
 ## Build status
 
 - The prototype PKG with the bundled full-color controller glyphs compiled successfully in GitHub Actions on November 27, 2026 (source commit `781eaecf429cee02afa0939335f89698fe8cd927`, run #47). The workflow artifact is `SaveGuard-prototype` (18,517,066 bytes; ZIP SHA-256 `d185808ee3a43e0419f1ccd35612f6cf362c3e3b4dfe73667deadb97f4586f80`).
-- The extracted PKG SHA-256 is `b95909dec551f00b8ef5eb74caac3d9219def008a23526f535e61bf03e580d58`. Its header starts with the PS4 PKG magic and its Content ID matches the filename; this does not establish console compatibility.
 - Native dashboard compilation and safety tests passed in GitHub Actions run #73 after the generated icon header was wired into the native build.
 - The user successfully opened SaveGuard on a PS4, but screenshots show `USB NOT READY`, `FILES 0 / ERRORS 1` on SCAN FILES, and a subsequent application crash `CE-34878-0`.
 - Installation and runtime behavior are unresolved. Do not treat this artifact as a usable release.
