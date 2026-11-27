@@ -36,7 +36,7 @@ for button in buttons:
     export_button(button, target)
     image = Image.open(target).convert("RGBA")
     if image.size != (size, size):
-        image = image.resize((size, size), Image.Resampling.LANCZOS)
+        image = image.resize((size, size), getattr(Image, 'Resampling', Image).LANCZOS)
     lines.append(c_bytes(button + "_pixels", image.tobytes()))
     target.unlink()
 lines.append("#endif")
