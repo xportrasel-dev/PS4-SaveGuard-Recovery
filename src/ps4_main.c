@@ -34,7 +34,7 @@ static void pair_report(uint32_t user,const char *title,const char *slot,int sta
 }
 int sg_snapshot(const char *,unsigned);
 int sg_usb_ready(unsigned);
-static int sg_delete_selected_save(void){
+static int sg_delete_selected_save(unsigned usb){
  if(!pair_count||pair_index>=pair_count||pairs[pair_index].state!=1||sg_usb_ready(usb))return -1;
  char path[160];struct stat st;
  int n=snprintf(path,sizeof path,"/user/home/%08x/savedata/%s",(unsigned)pairs[pair_index].user,pairs[pair_index].title);
@@ -183,7 +183,7 @@ int main(void){
  rc=sg_guard_consume(&guard,now_seconds())||!name||sg_trash_move(usb,name+1,pending_trash==2);
  if(!rc){backup_count=backup_index=0;trash_view=0;}
  }else if(!rc&&pending_delete){
- rc=sg_guard_consume(&guard,now_seconds())||sg_delete_selected_save();
+ rc=sg_guard_consume(&guard,now_seconds())||sg_delete_selected_save(usb);
  if(!rc){pair_count=pair_index=0;}
  }
  pending_trash=0;pending_delete=0;changing_pin=0;status=rc?2:1;clear_pin();pin_mode=0;
