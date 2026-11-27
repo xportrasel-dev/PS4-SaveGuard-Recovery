@@ -3,9 +3,11 @@
 #include <dirent.h>
 #include <sys/stat.h>
 typedef void (*sg_history_cb)(const char *,const char *,const char *,long long,void *);
-int sg_history(unsigned usb,sg_history_cb cb,void *ctx){
- if(usb>7||!cb)return -1;
- char root[64];snprintf(root,sizeof root,"/mnt/usb%u",usb);
+int sg_usb_ready(unsigned);
+static int list_history(unsigned usb,sg_history_cb cb,void *ctx,int trash){
+ if(sg_usb_ready(usb)||!cb)return -1;
+ char root[64];snprintf(root,sizeof root,"/mnt/usb%u%s",usb,trash?"/SaveGuard-Trash":"");
+ struct stat rs;if(lstat(root,&rs)||!S_ISDIR(rs.st_mode))return -1;
  DIR *d=opendir(root);if(!d)return -1;
  struct dirent *e;int count=0;
  while((e=readdir(d))){
@@ -26,3 +28,6 @@ int sg_history(unsigned usb,sg_history_cb cb,void *ctx){
  }
  closedir(d);return count;
 }
+
+int sg_history(unsigned usb,sg_history_cb cb,void *ctx){return list_history(usb,cb,ctx,0);}
+int sg_trash_history(unsigned usb,sg_history_cb cb,void *ctx){return list_history(usb,cb,ctx,1);}
