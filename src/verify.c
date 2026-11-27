@@ -19,6 +19,22 @@ static int regular_path(const char *root,const char *rel,char out[8192]){
  rel=slash+1;if(!*rel)return -1;
  }return -1;
 }
+static int count_tree(const char *path,unsigned depth,unsigned *count){
+ if(!depth)return -1;
+ DIR *d=opendir(path);if(!d)return -1;
+ int rc=0;struct dirent *e;
+ for(;;){
+ errno=0;e=readdir(d);if(!e){if(errno)rc=-1;break;}
+ if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
+ char p[8192];struct stat st;
+ int n=snprintf(p,sizeof p,"%s/%s",path,e->d_name);
+ if(n<0||n>=8192||lstat(p,&st)){rc=-1;break;}
+ if(S_ISDIR(st.st_mode)){if(count_tree(p,depth-1,count)){rc=-1;break;}}
+ else if(S_ISREG(st.st_mode)){if(*count==~0u){rc=-1;break;}++*count;}
+ else {rc=-1;break;}
+ }
+ closedir(d);return rc;
+}
 int sg_verify_snapshot(const char *root,unsigned *checked){
  char path[8192],line[4200];struct stat st;unsigned count=0;
  if(checked)*checked=0;
@@ -38,5 +54,10 @@ int sg_verify_snapshot(const char *root,unsigned *checked){
  count++;
  }
  if(ferror(f)||!count)rc=-1;
- fclose(f);if(checked)*checked=count;return rc;
+ fclose(f);
+ unsigned actual=0;
+ snprintf(path,sizeof path,"%s/data",root);
+ if(lstat(path,&st)||!S_ISDIR(st.st_mode)||count_tree(path,16,&actual)||actual!=count)rc=-1;
+ if(checked)*checked=count;
+ return rc;
 }
