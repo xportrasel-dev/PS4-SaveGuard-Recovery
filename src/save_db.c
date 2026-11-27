@@ -45,3 +45,22 @@ int sg_db_reconcile(uint32_t user,struct sg_db_summary *s){
  struct sg_db_context c={user,s};
  return sg_db_user_inventory(user,classify,&c);
 }
+
+#include <dirent.h>
+#include <stdlib.h>
+int sg_db_scan_all(struct sg_db_summary *total,unsigned *users,unsigned *failed){
+ if(!total||!users||!failed)return -1;
+ memset(total,0,sizeof *total);*users=*failed=0;
+ DIR *d=opendir("/system_data/savedata");if(!d)return -1;
+ struct dirent *e;int rc=0;
+ for(;;){
+ errno=0;e=readdir(d);if(!e){if(errno)rc=-1;break;}
+ if(strlen(e->d_name)!=8||strspn(e->d_name,"0123456789abcdefABCDEF")!=8)continue;
+ if(*users>=256){rc=-1;break;}
+ ++*users;
+ struct sg_db_summary s;
+ if(sg_db_reconcile((uint32_t)strtoul(e->d_name,NULL,16),&s)<0){++*failed;rc=-1;continue;}
+ total->rows+=s.rows;total->present+=s.present;total->missing+=s.missing;total->unknown+=s.unknown;
+ }
+ closedir(d);return *users?rc:-1;
+}
