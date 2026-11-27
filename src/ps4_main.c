@@ -40,6 +40,8 @@ static struct sg_pin_record pin_record;
 static char pin_input[13];
 static unsigned pin_len,pin_digit;
 static int pin_mode;
+static char pin_first[13];
+static void clear_first(void){volatile char *p=pin_first;for(unsigned i=0;i<13;i++)p[i]=0;}
 int sg_trash_move(unsigned,const char *,int);
 int sg_guard_consume(struct sg_pin_guard *,uint64_t);
 static int pending_trash;
@@ -111,9 +113,11 @@ int main(void){
  if(b==SDL_CONTROLLER_BUTTON_DPAD_DOWN)pin_digit=(pin_digit+9)%10;
  if(b==SDL_CONTROLLER_BUTTON_A&&pin_len<12){pin_input[pin_len++]=(char)('0'+pin_digit);pin_input[pin_len]=0;}
  if(b==SDL_CONTROLLER_BUTTON_DPAD_LEFT&&pin_len)pin_input[--pin_len]=0;
- if(b==SDL_CONTROLLER_BUTTON_B){clear_pin();pin_mode=0;pending_trash=0;}
+ if(b==SDL_CONTROLLER_BUTTON_B){clear_pin();clear_first();pin_mode=0;pending_trash=0;}
  if(b==SDL_CONTROLLER_BUTTON_Y&&pin_len>=6){
- int rc=pin_mode==1?(sg_pin_create_random(&pin_record,pin_input)||sg_pin_store_new(usb,&pin_record)):sg_guard_attempt(&guard,&pin_record,pin_input,now_seconds());
+ if(pin_mode==1){memcpy(pin_first,pin_input,sizeof pin_first);clear_pin();pin_mode=3;continue;}
+ int rc=pin_mode==3?(strcmp(pin_first,pin_input)!=0||sg_pin_create_random(&pin_record,pin_input)||sg_pin_store_new(usb,&pin_record)):sg_guard_attempt(&guard,&pin_record,pin_input,now_seconds());
+ clear_first();
  if(!rc&&pending_trash){
  const char *name=backup_count?strrchr(backups[backup_index].path,'/'):NULL;
  rc=sg_guard_consume(&guard,now_seconds())||!name||sg_trash_move(usb,name+1,pending_trash==2);
@@ -191,7 +195,7 @@ int main(void){
  if(selected==7){label(r,450,610,2,schedule.enabled?"AUTO BACKUP ON":"AUTO BACKUP OFF");snprintf(info,sizeof info,"INTERVAL 24 HOURS USB %u",schedule.enabled?schedule.usb:usb);label(r,450,650,2,info);}
  if(pin_mode){
  rect(r,420,150,820,520,20,34,54);
- label(r,450,190,3,pin_mode==1?"CREATE PIN":"VERIFY PIN");
+ label(r,450,190,3,pin_mode==1?"CREATE PIN":pin_mode==3?"CONFIRM NEW PIN":"VERIFY PIN");
  snprintf(info,sizeof info,"DIGIT %u",pin_digit);label(r,450,250,4,info);
  for(unsigned i=0;i<pin_len;i++)rect(r,450+i*32,330,20,20,230,240,250);
  label(r,450,390,2,"UP DOWN CHANGE DIGIT");
